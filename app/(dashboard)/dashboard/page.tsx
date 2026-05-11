@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
@@ -10,6 +10,7 @@ import {
   seedOrders,
 } from '@/lib/seed-data'
 import type { Orderlijst, Order } from '@/lib/types'
+import toast from 'react-hot-toast'
 
 type Tab = 'shop' | 'orders' | 'orderlijst'
 type OrderStatus = 'alle' | 'bevestigd' | 'in_productie' | 'verzonden' | 'geleverd'
@@ -203,34 +204,79 @@ export default function DashboardPage() {
   const [sendModal, setSendModal] = useState<{ open: boolean; naam: string }>({ open: false, naam: '' })
   const [newListModal, setNewListModal] = useState(false)
 
-  useEffect(() => {
-    setOrderlijsten(seedOrderlijsten)
-    setOrders(seedOrders)
+  const getSupabase = useCallback(async () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!url || url === 'https://your-project.supabase.co') return null
+    const { createClient } = await import('@/lib/supabase/client')
+    return createClient()
   }, [])
 
-  function toggleListStatus(id: string) {
-    setOrderlijsten(lists =>
-      lists.map(l => l.id === id
-        ? { ...l, status: (l.status === 'actueel' ? 'concept' : 'actueel') as Orderlijst['status'] }
-        : l
-      )
-    )
-  }
+  useEffect(() => {
+    async function load() {
+      const supabase = await getSupabase()
+      if (!supabase) {
+        setOrderlijsten(seedOrderlijsten)
+        setOrders(seedOrders)
+        return
+      }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
 
-  function deleteList(id: string) {
-    setOrderlijsten(lists => lists.filter(l => l.id !== id))
-  }
+      const { data: lijsten } = await supabase
+        .from('orderlijsten')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('bijgewerkt_op', { ascending: false })
+      if (lijsten) setOrderlijsten(lijsten)
 
-  function createNewList(naam: string) {
-    const newList: Orderlijst = {
-      id: `ol-${Date.now()}`,
-      user_id: 'demo-user',
-      naam,
-      status: 'actueel',
-      aangemaakt_op: new Date().toISOString(),
-      bijgewerkt_op: new Date().toISOString(),
+      const { data: ords } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('bevestigd_op', { ascending: false })
+      if (ords) setOrders(ords)
+      else setOrders(seedOrders)
     }
-    setOrderlijsten(lists => [newList, ...lists])
+    load()
+  }, [getSupabase])
+
+  async function toggleListStatus(id: string) {
+    const lijst = orderlijsten.find(l => l.id === id)
+    if (!lijst) return
+    const newStatus = lijst.status === 'actueel' ? 'concept' : 'actueel'
+    setOrderlijsten(lists => lists.map(l => l.id === id ? { ...l, status: newStatus as Orderlijst['status'] } : l))
+    const supabase = await getSupabase()
+    if (supabase) await supabase.from('orderlijsten').update({ status: newStatus }).eq('id', id)
+  }
+
+  async function deleteList(id: string) {
+    setOrderlijsten(lists => lists.filter(l => l.id !== id))
+    const supabase = await getSupabase()
+    if (supabase) await supabase.from('orderlijsten').delete().eq('id', id)
+  }
+
+  async function createNewList(naam: string) {
+    const supabase = await getSupabase()
+    if (!supabase) {
+      const newList: Orderlijst = {
+        id: `ol-${Date.now()}`, user_id: 'demo-user', naam,
+        status: 'actueel', aangemaakt_op: new Date().toISOString(), bijgewerkt_op: new Date().toISOString(),
+      }
+      setOrderlijsten(lists => [newList, ...lists])
+      return
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { toast.error('Niet ingelogd'); return }
+
+    const { data, error } = await supabase
+      .from('orderlijsten')
+      .insert({ user_id: user.id, naam, status: 'actueel' })
+      .select()
+      .single()
+
+    if (error) { toast.error('Aanmaken mislukt: ' + error.message); return }
+    if (data) setOrderlijsten(lists => [data, ...lists])
+    toast.success(`Orderlijst "${naam}" aangemaakt`)
   }
 
   function toggleSelectList(id: string) {

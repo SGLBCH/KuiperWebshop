@@ -75,9 +75,29 @@ export default function ConfiguratorPage() {
 
   const priceResult = calculatePrice(state, pricingData)
 
-  useEffect(() => {
-    setOrderlijsten(seedOrderlijsten)
+  const getSupabase = useCallback(async () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!url || url === 'https://your-project.supabase.co') return null
+    const { createClient } = await import('@/lib/supabase/client')
+    return createClient()
   }, [])
+
+  useEffect(() => {
+    async function load() {
+      const supabase = await getSupabase()
+      if (!supabase) { setOrderlijsten(seedOrderlijsten); return }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setOrderlijsten(seedOrderlijsten); return }
+      const { data } = await supabase
+        .from('orderlijsten')
+        .select('*')
+        .eq('user_id', user.id)
+        .in('status', ['actueel', 'concept'])
+        .order('bijgewerkt_op', { ascending: false })
+      if (data) setOrderlijsten(data)
+    }
+    load()
+  }, [getSupabase])
 
   const dimmedSteps = (state.categorie === 'kaal') ? [4, 5] : []
 
@@ -116,33 +136,79 @@ export default function ConfiguratorPage() {
     return true
   }
 
-  function handleAddToList() {
+  async function saveRegel(keepListForNext?: boolean) {
+    if (!state.orderlijst_id || !state.basisplaat || !state.afmeting) {
+      toast.error('Onvolledige configuratie')
+      return
+    }
+    const supabase = await getSupabase()
+    if (supabase) {
+      const { error } = await supabase.from('orderlijst_regels').insert({
+        orderlijst_id: state.orderlijst_id,
+        basisplaat_id: state.basisplaat.id,
+        categorie: state.categorie,
+        fineer_voor: state.fineer_voor ?? null,
+        fineer_tegen: state.fineer_tegen ?? null,
+        hpl_voor: state.hpl_voor ?? null,
+        hpl_tegen: state.hpl_tegen ?? null,
+        voegmethode: state.voegmethode ?? null,
+        bewerkingen: state.bewerkingen ?? [],
+        ruimte_indeling: state.ruimte_indeling ?? 'geen',
+        ruimtes: state.ruimtes ?? [],
+        aantal: state.aantal,
+        prijs_per_stuk: priceResult.totaal / (state.aantal || 1),
+        totaal_prijs: priceResult.totaal,
+      })
+      if (error) { toast.error('Opslaan mislukt: ' + error.message); return }
+      // Update bijgewerkt_op on the orderlijst
+      await supabase.from('orderlijsten')
+        .update({ bijgewerkt_op: new Date().toISOString() })
+        .eq('id', state.orderlijst_id)
+    }
     toast.success(`Regel toegevoegd aan "${state.orderlijst_naam ?? 'Orderlijst'}"`)
-    setState(initialState)
-    setStep(0)
+    if (keepListForNext) {
+      const keepList = { orderlijst_id: state.orderlijst_id, orderlijst_naam: state.orderlijst_naam }
+      setState({ ...initialState, ...keepList })
+      setStep(1)
+    } else {
+      setState(initialState)
+      setStep(0)
+    }
   }
 
-  function handleAddAndNew() {
-    toast.success('Regel toegevoegd — begin nieuwe configuratie')
-    const keepList = { orderlijst_id: state.orderlijst_id, orderlijst_naam: state.orderlijst_naam }
-    setState({ ...initialState, ...keepList })
-    setStep(1)
-  }
+  function handleAddToList() { saveRegel(false) }
+  function handleAddAndNew() { saveRegel(true) }
 
   function handleReset() {
     setState(initialState)
     setStep(0)
   }
 
-  function createNewOrderlijst() {
+  async function createNewOrderlijst() {
     if (!newListNaam.trim()) return
+    const supabase = await getSupabase()
+    if (supabase) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data, error } = await supabase
+          .from('orderlijsten')
+          .insert({ user_id: user.id, naam: newListNaam.trim(), status: 'actueel' })
+          .select()
+          .single()
+        if (error) { toast.error('Aanmaken mislukt: ' + error.message); return }
+        if (data) {
+          setOrderlijsten(l => [data, ...l])
+          setState(s => ({ ...s, orderlijst_id: data.id, orderlijst_naam: data.naam }))
+          setNewListNaam('')
+          setCreatingList(false)
+          return
+        }
+      }
+    }
+    // Demo fallback
     const newList: Orderlijst = {
-      id: `ol-${Date.now()}`,
-      user_id: 'demo-user',
-      naam: newListNaam.trim(),
-      status: 'actueel',
-      aangemaakt_op: new Date().toISOString(),
-      bijgewerkt_op: new Date().toISOString(),
+      id: `ol-${Date.now()}`, user_id: 'demo-user', naam: newListNaam.trim(),
+      status: 'actueel', aangemaakt_op: new Date().toISOString(), bijgewerkt_op: new Date().toISOString(),
     }
     setOrderlijsten(l => [newList, ...l])
     setState(s => ({ ...s, orderlijst_id: newList.id, orderlijst_naam: newList.naam }))
