@@ -1971,8 +1971,8 @@ export default function AdminPage() {
               </table>
             </div>
 
-            {/* Uitsluiting modal (placed here to avoid nesting issues) */}
-            {uitModal.open && (
+            {/* Uitsluiting modal — moved to uitsluitingen tab */}
+            {false && (
               <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setUitModal(m => ({ ...m, open: false }))}>
                 <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
                   <h3 className="text-base font-semibold text-gray-800">Uitsluiting toevoegen</h3>
@@ -2174,6 +2174,73 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Uitsluiting modal */}
+            {uitModal.open && (
+              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setUitModal(m => ({ ...m, open: false }))}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-base font-semibold text-gray-800">Uitsluiting toevoegen</h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Subject type</label>
+                      <select value={uitModal.form.subject_type} onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, subject_type: e.target.value, subject_id: '' } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="basisplaat">Basisplaat</option>
+                        <option value="fineer">Fineer</option>
+                        <option value="hpl">HPL</option>
+                        <option value="bewerking">Bewerking</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Subject item</label>
+                      <select value={uitModal.form.subject_id} onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, subject_id: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">— Kies item —</option>
+                        {getItemsForType(uitModal.form.subject_type).map(x => (
+                          <option key={x.id} value={x.id}>{x.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Uitgesloten type</label>
+                      <select value={uitModal.form.uitgesloten_type} onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, uitgesloten_type: e.target.value, uitgesloten_id: '' } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="basisplaat">Basisplaat</option>
+                        <option value="fineer">Fineer</option>
+                        <option value="hpl">HPL</option>
+                        <option value="bewerking">Bewerking</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Uitgesloten item</label>
+                      <select value={uitModal.form.uitgesloten_id} onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, uitgesloten_id: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                        <option value="">— Kies item —</option>
+                        {getItemsForType(uitModal.form.uitgesloten_type).map(x => (
+                          <option key={x.id} value={x.id}>{x.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Reden (optioneel)</label>
+                    <input type="text" value={uitModal.form.reden} onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, reden: e.target.value } }))}
+                      placeholder="Bijv. technisch niet compatibel"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button onClick={() => setUitModal(m => ({ ...m, open: false }))} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Annuleren</button>
+                    <button onClick={saveUitsluiting} className="px-5 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Opslaan</button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
