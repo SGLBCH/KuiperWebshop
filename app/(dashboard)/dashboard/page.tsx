@@ -68,10 +68,17 @@ function getStatusBadgeVariant(status: string): 'info' | 'warning' | 'active' | 
   }
 }
 
-function SendOrderlijstModal({ open, onClose, naam }: { open: boolean; onClose: () => void; naam: string }) {
+function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
+  open: boolean
+  onClose: () => void
+  naam: string
+  orderlijstId?: string
+  onSent?: () => void
+}) {
   const [modalStep, setModalStep] = useState(0)
   const [bericht, setBericht] = useState('')
   const [checks, setChecks] = useState([false, false, false, false])
+  const [sending, setSending] = useState(false)
 
   const checkLabels = [
     'Ik heb alle regels gecontroleerd op juistheid',
@@ -86,8 +93,43 @@ function SendOrderlijstModal({ open, onClose, naam }: { open: boolean; onClose: 
 
   const allChecked = checks.every(Boolean)
 
-  function handleSend() {
-    setModalStep(2)
+  async function handleSend() {
+    setSending(true)
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      if (url && url !== 'https://your-project.supabase.co' && orderlijstId) {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) { toast.error('Niet ingelogd'); setSending(false); return }
+
+        // Haal totaalwaarde op uit regels
+        const { data: regels } = await supabase
+          .from('orderlijst_regels')
+          .select('totaal_prijs')
+          .eq('orderlijst_id', orderlijstId)
+        const totaal = (regels ?? []).reduce((s, r) => s + (r.totaal_prijs ?? 0), 0)
+
+        // Insert aanvraag
+        const { error: aanvraagError } = await supabase.from('aanvragen').insert({
+          user_id: user.id,
+          orderlijst_ids: [orderlijstId],
+          type: 'enkel',
+          bericht: bericht || null,
+          totaal_waarde: totaal,
+          status: 'definitief',
+        })
+        if (aanvraagError) { toast.error('Versturen mislukt: ' + aanvraagError.message); setSending(false); return }
+
+        // Update orderlijst status naar verstuurd
+        await supabase.from('orderlijsten').update({ status: 'verstuurd' }).eq('id', orderlijstId)
+
+        onSent?.()
+      }
+      setModalStep(2)
+    } finally {
+      setSending(false)
+    }
   }
 
   function handleClose() {
@@ -147,10 +189,10 @@ function SendOrderlijstModal({ open, onClose, naam }: { open: boolean; onClose: 
             </button>
             <button
               onClick={handleSend}
-              disabled={!allChecked}
+              disabled={!allChecked || sending}
               className="px-4 py-2 text-sm font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Verstuur aanvraag
+              {sending ? 'Versturen…' : 'Verstuur aanvraag'}
             </button>
           </div>
         </div>
@@ -634,7 +676,14 @@ export default function DashboardPage() {
       <SendOrderlijstModal
         open={sendModal.open}
         naam={sendModal.naam}
+        orderlijstId={sendModal.id}
         onClose={() => setSendModal({ open: false, naam: '' })}
+        onSent={() => {
+          // Verplaats verstuurde lijst naar historie
+          setOrderlijsten(lists => lists.map(l =>
+            l.id === sendModal.id ? { ...l, status: 'verstuurd' as Orderlijst['status'] } : l
+          ))
+        }}
       />
       <NewOrderlijstModal
         open={newListModal}

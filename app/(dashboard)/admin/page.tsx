@@ -45,6 +45,17 @@ const DEMO_AANVRAGEN = [
 
 type AanmeldingRow = { id: string; naam: string; bedrijf: string; email: string; datum: string; rol: 'kijker' | 'calculator' | 'inkoper' }
 type KlantRow = { id: string; naam: string; bedrijf: string; rol: string; status: string; last_seen: string; clicks: number }
+type AanvraagRow = {
+  id: string
+  project: string
+  klant: string
+  waarde: number
+  aangemaakt: string
+  verstuurd: string
+  bericht: string | null
+  fineerkeuze: string | null
+}
+type ConceptRow = { id: string; naam: string; klant: string; status: string; bijgewerkt: string }
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('aanmeldingen')
@@ -56,6 +67,10 @@ export default function AdminPage() {
 
   // Klanten state
   const [klanten, setKlanten] = useState<KlantRow[]>(DEMO_KLANTEN)
+
+  // Aanvragen state
+  const [aanvragen, setAanvragen] = useState<AanvraagRow[]>([])
+  const [concepten, setConcepten] = useState<ConceptRow[]>([])
 
   // Load real data from Supabase on mount
   useEffect(() => {
@@ -112,6 +127,68 @@ export default function AdminPage() {
             clicks: 0,
           })))
         }
+
+        // Fetch aanvragen (verstuurd door klanten)
+        const { data: aanvraagData } = await supabase
+          .from('aanvragen')
+          .select(`
+            id, bericht, totaal_waarde, verstuurd_op,
+            fineerkeuze_tekst, orderlijst_ids,
+            profiles ( naam, bedrijf )
+          `)
+          .eq('status', 'definitief')
+          .order('verstuurd_op', { ascending: false })
+
+        if (aanvraagData) {
+          // Haal orderlijstnamen op via aparte query
+          const aanvraagRows: AanvraagRow[] = await Promise.all(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            aanvraagData.map(async (a: any) => {
+              let projectNaam = '—'
+              const ids = (a.orderlijst_ids as string[]) ?? []
+              if (ids.length > 0) {
+                const { data: ol } = await supabase
+                  .from('orderlijsten')
+                  .select('naam')
+                  .in('id', ids)
+                if (ol?.length) projectNaam = ol.map((o: { naam: string }) => o.naam).join(', ')
+              }
+              const profiel = a.profiles as { naam: string; bedrijf: string } | null
+              return {
+                id: a.id,
+                project: projectNaam,
+                klant: profiel?.naam ?? '—',
+                waarde: a.totaal_waarde ?? 0,
+                aangemaakt: a.verstuurd_op?.split('T')[0] ?? '—',
+                verstuurd: a.verstuurd_op?.split('T')[0] ?? '—',
+                bericht: a.bericht ?? null,
+                fineerkeuze: a.fineerkeuze_tekst ?? null,
+              }
+            })
+          )
+          setAanvragen(aanvraagRows)
+        }
+
+        // Fetch concepten (actieve orderlijsten van alle klanten)
+        const { data: conceptData } = await supabase
+          .from('orderlijsten')
+          .select('id, naam, status, bijgewerkt_op, profiles ( naam )')
+          .in('status', ['actueel', 'concept'])
+          .order('bijgewerkt_op', { ascending: false })
+
+        if (conceptData) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setConcepten(conceptData.map((c: any) => ({
+            id: c.id,
+            naam: c.naam,
+            klant: (c.profiles as { naam: string } | { naam: string }[] | null) instanceof Array
+              ? (c.profiles as { naam: string }[])[0]?.naam ?? '—'
+              : (c.profiles as { naam: string } | null)?.naam ?? '—',
+            status: c.status,
+            bijgewerkt: c.bijgewerkt_op?.split('T')[0] ?? '—',
+          })))
+        }
+
       } catch (err) {
         console.error('Failed to load admin data:', err)
         // Keep demo data on error
@@ -423,41 +500,76 @@ export default function AdminPage() {
             </div>
 
             {aanvraagSubTab === 'definitief' && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600">Project</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600">Klant</th>
-                      <th className="text-right py-2 px-3 font-semibold text-gray-600">Waarde</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600">Aangemaakt</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600">Verstuurd</th>
-                      <th className="text-center py-2 px-3 font-semibold text-gray-600">Bericht</th>
-                      <th className="text-left py-2 px-3 font-semibold text-gray-600">Fineerkeuze</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {DEMO_AANVRAGEN.map(a => (
-                      <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-3 font-medium text-gray-800">{a.project}</td>
-                        <td className="py-3 px-3 text-gray-600">{a.klant}</td>
-                        <td className="py-3 px-3 text-right font-medium">€ {a.waarde.toLocaleString('nl-NL')}</td>
-                        <td className="py-3 px-3 text-gray-400 text-xs">{a.aangemaakt}</td>
-                        <td className="py-3 px-3 text-gray-400 text-xs">{a.verstuurd}</td>
-                        <td className="py-3 px-3 text-center">{a.bericht ? '💬' : '—'}</td>
-                        <td className="py-3 px-3 text-xs text-gray-500">🪵 {a.fineerkeuze}</td>
+              aanvragen.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  <p className="text-3xl mb-2">📬</p>
+                  <p className="text-sm">Nog geen verstuurde aanvragen.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Project</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Klant</th>
+                        <th className="text-right py-2 px-3 font-semibold text-gray-600">Waarde</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Verstuurd</th>
+                        <th className="text-center py-2 px-3 font-semibold text-gray-600">Bericht</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Fineerkeuze</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {aanvragen.map(a => (
+                        <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-3 font-medium text-gray-800">{a.project}</td>
+                          <td className="py-3 px-3 text-gray-600">{a.klant}</td>
+                          <td className="py-3 px-3 text-right font-medium">€ {a.waarde.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</td>
+                          <td className="py-3 px-3 text-gray-400 text-xs">{a.verstuurd}</td>
+                          <td className="py-3 px-3 text-center" title={a.bericht ?? ''}>{a.bericht ? '💬' : '—'}</td>
+                          <td className="py-3 px-3 text-xs text-gray-500">{a.fineerkeuze ? `🪵 ${a.fineerkeuze}` : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
 
             {aanvraagSubTab === 'concepten' && (
-              <div className="text-center py-10 text-gray-400">
-                <p className="text-3xl mb-2">📋</p>
-                <p className="text-sm">Actieve concepten van klanten worden hier getoond.</p>
-              </div>
+              concepten.length === 0 ? (
+                <div className="text-center py-10 text-gray-400">
+                  <p className="text-3xl mb-2">📋</p>
+                  <p className="text-sm">Geen actieve concepten van klanten.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Orderlijst</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Klant</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Status</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Bijgewerkt</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {concepten.map(c => (
+                        <tr key={c.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-3 font-medium text-gray-800">{c.naam}</td>
+                          <td className="py-3 px-3 text-gray-600">{c.klant}</td>
+                          <td className="py-3 px-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium
+                              ${c.status === 'actueel' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {c.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-gray-400 text-xs">{c.bijgewerkt}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         )}
