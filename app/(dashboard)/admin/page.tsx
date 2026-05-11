@@ -2340,11 +2340,12 @@ function GallerijTab({
 
   async function saveUrl(id: string) {
     const url = urlInputs[id] ?? ''
-    onUrlChange(id, url)
     try {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
-      await supabase.from(tableName).update({ gallery_foto_url: url || null }).eq('id', id)
+      const { error } = await supabase.from(tableName).update({ gallery_foto_url: url || null }).eq('id', id)
+      if (error) { toast.error('Opslaan mislukt: ' + error.message); return }
+      onUrlChange(id, url)
       toast.success('URL opgeslagen')
     } catch (e) {
       toast.error('Opslaan mislukt')
