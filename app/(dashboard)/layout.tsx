@@ -36,8 +36,8 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  // Block access if not approved yet
-  if (!demoMode && user && profile?.status !== 'goedgekeurd') {
+  // Block access if explicitly not approved (ignore null = possible fetch error)
+  if (!demoMode && user && profile && profile.status !== 'goedgekeurd') {
     redirect('/pending')
   }
 
