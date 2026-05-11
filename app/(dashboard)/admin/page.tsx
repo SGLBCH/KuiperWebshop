@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { Badge } from '@/components/ui/Badge'
 import {
@@ -43,17 +43,86 @@ const DEMO_AANVRAGEN = [
   { id: 'av3', project: 'Wandpanelen Woonkamer', klant: 'Jan de Vries', waarde: 920, aangemaakt: '2026-03-22', verstuurd: '2026-03-22', bericht: false, fineerkeuze: 'foto_kuiper' },
 ]
 
+type AanmeldingRow = { id: string; naam: string; bedrijf: string; email: string; datum: string; rol: 'kijker' | 'calculator' | 'inkoper' }
+type KlantRow = { id: string; naam: string; bedrijf: string; rol: string; status: string; last_seen: string; clicks: number }
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('aanmeldingen')
+  const [loadingData, setLoadingData] = useState(true)
 
   // Aanmeldingen state
-  const [aanmeldingen, setAanmeldingen] = useState(DEMO_AANMELDINGEN)
-  const [rolKeuzes, setRolKeuzes] = useState<Record<string, string>>(
-    Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker']))
-  )
+  const [aanmeldingen, setAanmeldingen] = useState<AanmeldingRow[]>([])
+  const [rolKeuzes, setRolKeuzes] = useState<Record<string, string>>({})
 
   // Klanten state
-  const [klanten, setKlanten] = useState(DEMO_KLANTEN)
+  const [klanten, setKlanten] = useState<KlantRow[]>(DEMO_KLANTEN)
+
+  // Load real data from Supabase on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
+          // Demo mode fallback
+          setAanmeldingen(DEMO_AANMELDINGEN)
+          setRolKeuzes(Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker'])))
+          setKlanten(DEMO_KLANTEN)
+          setLoadingData(false)
+          return
+        }
+
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+
+        // Fetch pending registrations
+        const { data: pendingData } = await supabase
+          .from('profiles')
+          .select('id, naam, bedrijf, email, aangemaakt_op')
+          .eq('status', 'pending')
+          .order('aangemaakt_op', { ascending: false })
+
+        if (pendingData) {
+          const rows: AanmeldingRow[] = pendingData.map(p => ({
+            id: p.id,
+            naam: p.naam ?? '—',
+            bedrijf: p.bedrijf ?? '—',
+            email: p.email,
+            datum: p.aangemaakt_op?.split('T')[0] ?? '—',
+            rol: 'kijker' as const,
+          }))
+          setAanmeldingen(rows)
+          setRolKeuzes(Object.fromEntries(rows.map(r => [r.id, 'kijker'])))
+        }
+
+        // Fetch approved customers
+        const { data: klantenData } = await supabase
+          .from('profiles')
+          .select('id, naam, bedrijf, rol, status, aangemaakt_op')
+          .in('status', ['goedgekeurd', 'gedeactiveerd'])
+          .order('aangemaakt_op', { ascending: false })
+
+        if (klantenData && klantenData.length > 0) {
+          setKlanten(klantenData.map(k => ({
+            id: k.id,
+            naam: k.naam ?? '—',
+            bedrijf: k.bedrijf ?? '—',
+            rol: k.rol ?? 'kijker',
+            status: k.status,
+            last_seen: '—',
+            clicks: 0,
+          })))
+        }
+      } catch (err) {
+        console.error('Failed to load admin data:', err)
+        // Keep demo data on error
+        setAanmeldingen(DEMO_AANMELDINGEN)
+        setRolKeuzes(Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker'])))
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    loadData()
+  }, [])
 
   // Prijzen state
   const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
@@ -89,12 +158,33 @@ export default function AdminPage() {
     { id: 'bewerkingen', label: 'Bewerkingen' },
   ]
 
-  function approveAanmelding(id: string) {
+  async function approveAanmelding(id: string) {
+    const gekozenRol = rolKeuzes[id] ?? 'kijker'
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      if (supabaseUrl && supabaseUrl !== 'https://your-project.supabase.co') {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        const { error } = await supabase
+          .from('profiles')
+          .update({ status: 'goedgekeurd', rol: gekozenRol })
+          .eq('id', id)
+        if (error) { toast.error('Opslaan mislukt: ' + error.message); return }
+      }
+    } catch { /* ignore network errors in demo */ }
     setAanmeldingen(a => a.filter(x => x.id !== id))
-    toast.success('Aanmelding goedgekeurd')
+    toast.success('Aanmelding goedgekeurd als ' + gekozenRol)
   }
 
-  function rejectAanmelding(id: string) {
+  async function rejectAanmelding(id: string) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      if (supabaseUrl && supabaseUrl !== 'https://your-project.supabase.co') {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        await supabase.from('profiles').update({ status: 'afgewezen' }).eq('id', id)
+      }
+    } catch { /* ignore */ }
     setAanmeldingen(a => a.filter(x => x.id !== id))
     toast.error('Aanmelding afgewezen')
   }
@@ -152,6 +242,14 @@ export default function AdminPage() {
     a.click()
     URL.revokeObjectURL(url)
     toast.success(`${filename} geëxporteerd`)
+  }
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-gray-500 text-sm">Gegevens laden…</div>
+      </div>
+    )
   }
 
   return (

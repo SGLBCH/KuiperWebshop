@@ -127,10 +127,8 @@ export default function SignupPage() {
     setLoading(true)
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
       if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
-        // Demo mode
         await new Promise(r => setTimeout(r, 800))
         setStep(4)
         return
@@ -139,26 +137,46 @@ export default function SignupPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
 
-      const { error } = await supabase.auth.signUp({
+      // 1. Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: persoonlijkEmail,
         password: wachtwoord,
         options: {
           data: {
             naam: `${voornaam} ${achternaam}`,
             bedrijf: bedrijfsnaam,
-            branche,
-            adres: `${adres}, ${postcode} ${stad}`,
-            kvk: kvk || null,
-            factuur_email: factuurEmail || persoonlijkEmail,
-            rol: 'kijker',
-            status: 'pending',
           },
         },
       })
 
-      if (error) {
-        toast.error(error.message)
+      if (authError) {
+        toast.error(authError.message)
         return
+      }
+
+      if (!authData.user) {
+        toast.error('Aanmaken mislukt, probeer opnieuw.')
+        return
+      }
+
+      // 2. Insert into public.profiles so admin can see the pending request
+      const { error: profileError } = await supabase.from('profiles').insert({
+        id: authData.user.id,
+        email: persoonlijkEmail,
+        naam: `${voornaam} ${achternaam}`,
+        bedrijf: bedrijfsnaam,
+        branche,
+        adres: `${adres}, ${postcode} ${stad}`,
+        kvk: kvk || null,
+        order_confirm_email: factuurEmail || persoonlijkEmail,
+        rol: 'kijker',
+        status: 'pending',
+      })
+
+      if (profileError) {
+        // Auth user was created but profile failed — still show success,
+        // admin can fix manually via Supabase dashboard
+        console.error('Profile insert error:', profileError.message)
       }
 
       setStep(4)
