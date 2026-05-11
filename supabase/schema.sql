@@ -185,6 +185,28 @@ CREATE TABLE IF NOT EXISTS public.orders (
 CREATE INDEX idx_orders_user_id ON public.orders(user_id);
 CREATE INDEX idx_orders_status  ON public.orders(status);
 
+-- ─── Trigger: auto-create profile on signup ──────────────────────────────────
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, naam, bedrijf, rol, status)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'naam', split_part(new.email, '@', 1)),
+    COALESCE(new.raw_user_meta_data->>'bedrijf', ''),
+    'kijker',
+    'pending'
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
 -- ─── Row Level Security ──────────────────────────────────────────────────────
 ALTER TABLE public.profiles           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orderlijsten       ENABLE ROW LEVEL SECURITY;
