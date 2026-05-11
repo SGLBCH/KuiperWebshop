@@ -67,10 +67,20 @@ export default function ConfiguratorPage() {
   const [creatingList, setCreatingList] = useState(false)
   const [m2Input, setM2Input] = useState('')
 
+  // Catalog state — loaded from Supabase, fallback to seed
+  const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
+  const [fineers, setFineers] = useState<Fineer[]>(seedFineers)
+  const [hplList, setHplList] = useState<HPL[]>(seedHPL)
+  const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
+  const [staffelFH, setStaffelFH] = useState(seedStaffelFineerHPL)
+  const [staffelKaal, setStaffelKaal] = useState(seedStaffelKaal)
+  const [verzendDrempel, setVerzendDrempel] = useState(1750)
+  const [verzendKosten, setVerzendKosten] = useState(25)
+
   const pricingData = {
-    staffel: state.categorie === 'kaal' ? seedStaffelKaal : seedStaffelFineerHPL,
-    verzend_drempel: parseFloat(seedInstellingen.find(i => i.sleutel === 'verzend_drempel')?.waarde ?? '1750'),
-    verzend_kosten: parseFloat(seedInstellingen.find(i => i.sleutel === 'verzend_kosten')?.waarde ?? '25'),
+    staffel: state.categorie === 'kaal' ? staffelKaal : staffelFH,
+    verzend_drempel: verzendDrempel,
+    verzend_kosten: verzendKosten,
   }
 
   const priceResult = calculatePrice(state, pricingData)
@@ -86,15 +96,44 @@ export default function ConfiguratorPage() {
     async function load() {
       const supabase = await getSupabase()
       if (!supabase) { setOrderlijsten(seedOrderlijsten); return }
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setOrderlijsten(seedOrderlijsten); return }
-      const { data } = await supabase
+
+      // Load orderlijsten
+      const { data: lijsten } = await supabase
         .from('orderlijsten')
         .select('*')
         .eq('user_id', user.id)
         .in('status', ['actueel', 'concept'])
         .order('bijgewerkt_op', { ascending: false })
-      if (data) setOrderlijsten(data)
+      if (lijsten) setOrderlijsten(lijsten)
+
+      // Load catalog (baseplaten, fineers, hpl, bewerkingen)
+      const [bpRes, fnRes, hplRes, bwRes, stRes, insRes] = await Promise.all([
+        supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
+        supabase.from('fineers').select('*').order('volgorde'),
+        supabase.from('hpl').select('*').order('kleur'),
+        supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
+        supabase.from('staffelregels').select('*').order('van_aantal'),
+        supabase.from('instellingen').select('*'),
+      ])
+
+      if (bpRes.data?.length) setBaseplaten(bpRes.data)
+      if (fnRes.data?.length) setFineers(fnRes.data)
+      if (hplRes.data?.length) setHplList(hplRes.data)
+      if (bwRes.data?.length) setBewerkingen(bwRes.data)
+      if (stRes.data?.length) {
+        // staffelregels table has a 'type' or split by van/tot — use all for both for now
+        setStaffelFH(stRes.data)
+        setStaffelKaal(stRes.data)
+      }
+      if (insRes.data?.length) {
+        const drempel = insRes.data.find(i => i.sleutel === 'verzend_drempel')
+        const kosten = insRes.data.find(i => i.sleutel === 'verzend_kosten')
+        if (drempel) setVerzendDrempel(parseFloat(drempel.waarde))
+        if (kosten) setVerzendKosten(parseFloat(kosten.waarde))
+      }
     }
     load()
   }, [getSupabase])
@@ -217,7 +256,7 @@ export default function ConfiguratorPage() {
   }
 
   // Group baseplaten by name
-  const baseplatenByNaam = seedBaseplaten.reduce<Record<string, Baseplaat[]>>((acc, p) => {
+  const baseplatenByNaam = baseplaten.reduce<Record<string, Baseplaat[]>>((acc, p) => {
     if (!acc[p.naam]) acc[p.naam] = []
     acc[p.naam].push(p)
     return acc
@@ -335,7 +374,7 @@ export default function ConfiguratorPage() {
             <p className="text-sm text-gray-500 mb-6">Selecteer de dikte en plaatgrootte.</p>
 
             {(() => {
-              const plaatVariants = seedBaseplaten.filter(p => p.naam === state.basisplaat?.naam)
+              const plaatVariants = baseplaten.filter(p => p.naam === state.basisplaat?.naam)
               const langPlaaten = plaatVariants.filter(p => p.lengte_mm > 2800)
               const kortPlaaten = plaatVariants.filter(p => p.lengte_mm <= 2800)
 
@@ -435,13 +474,13 @@ export default function ConfiguratorPage() {
                     <select
                       value={state.fineer_voor?.id ?? ''}
                       onChange={e => {
-                        const f = seedFineers.find(fn => fn.id === e.target.value)
+                        const f = fineers.find(fn => fn.id === e.target.value)
                         setState(s => ({ ...s, fineer_voor: f }))
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     >
                       <option value="">— Geen fineer —</option>
-                      {seedFineers.filter(f => f.status_lang !== 'niet_beschikbaar' || f.status_kort !== 'niet_beschikbaar').map(f => (
+                      {fineers.filter(f => f.status_lang !== 'niet_beschikbaar' || f.status_kort !== 'niet_beschikbaar').map(f => (
                         <option key={f.id} value={f.id}>{f.naam}</option>
                       ))}
                     </select>
@@ -462,13 +501,13 @@ export default function ConfiguratorPage() {
                     <select
                       value={state.fineer_tegen?.id ?? ''}
                       onChange={e => {
-                        const f = seedFineers.find(fn => fn.id === e.target.value)
+                        const f = fineers.find(fn => fn.id === e.target.value)
                         setState(s => ({ ...s, fineer_tegen: f }))
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     >
                       <option value="">— Geen fineer —</option>
-                      {seedFineers.map(f => (
+                      {fineers.map(f => (
                         <option key={f.id} value={f.id}>{f.naam}</option>
                       ))}
                     </select>
@@ -569,7 +608,7 @@ export default function ConfiguratorPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Voorzijde *</label>
                     <div className="space-y-2">
-                      {seedHPL.map(h => {
+                      {hplList.map(h => {
                         const isSelected = state.hpl_voor?.id === h.id
                         return (
                           <button
@@ -603,7 +642,7 @@ export default function ConfiguratorPage() {
                       >
                         — Geen tegenzijde —
                       </button>
-                      {seedHPL.map(h => {
+                      {hplList.map(h => {
                         const isSelected = state.hpl_tegen?.id === h.id
                         return (
                           <button
@@ -643,7 +682,7 @@ export default function ConfiguratorPage() {
             )}
 
             <div className="grid sm:grid-cols-2 gap-3">
-              {seedBewerkingen
+              {bewerkingen
                 .filter(b => b.beschikbaar && (!state.categorie || b.compatibiliteit.includes(state.categorie)))
                 .map(b => {
                   const isSelected = state.bewerkingen.some(sb => sb.id === b.id)
