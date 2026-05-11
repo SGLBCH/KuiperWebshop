@@ -49,6 +49,7 @@ type AanvraagRow = {
   id: string
   project: string
   klant: string
+  bedrijf: string
   waarde: number
   aangemaakt: string
   verstuurd: string
@@ -158,6 +159,7 @@ export default function AdminPage() {
                 id: a.id,
                 project: projectNaam,
                 klant: profiel?.naam ?? '—',
+                bedrijf: profiel?.bedrijf ?? '—',
                 waarde: a.totaal_waarde ?? 0,
                 aangemaakt: a.verstuurd_op?.split('T')[0] ?? '—',
                 verstuurd: a.verstuurd_op?.split('T')[0] ?? '—',
@@ -808,6 +810,7 @@ export default function AdminPage() {
                       <tr className="border-b border-gray-200">
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Project</th>
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Klant</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Bedrijf</th>
                         <th className="text-right py-2 px-3 font-semibold text-gray-600">Waarde</th>
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Verstuurd</th>
                         <th className="text-center py-2 px-3 font-semibold text-gray-600">Bericht</th>
@@ -820,6 +823,7 @@ export default function AdminPage() {
                         <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-3 px-3 font-medium text-gray-800">{a.project}</td>
                           <td className="py-3 px-3 text-gray-600">{a.klant}</td>
+                          <td className="py-3 px-3 text-gray-600">{a.bedrijf}</td>
                           <td className="py-3 px-3 text-right font-medium">€ {a.waarde.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</td>
                           <td className="py-3 px-3 text-gray-400 text-xs">{a.verstuurd}</td>
                           <td className="py-3 px-3 text-center" title={a.bericht ?? ''}>{a.bericht ? '💬' : '—'}</td>
