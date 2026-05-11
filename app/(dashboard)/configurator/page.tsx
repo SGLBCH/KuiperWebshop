@@ -121,18 +121,20 @@ export default function ConfiguratorPage() {
       if (lijsten) setOrderlijsten(lijsten)
 
       // Load catalog (baseplaten, fineers, hpl, bewerkingen)
-      const [bpRes, fnRes, hplRes, bwRes, stRes, insRes] = await Promise.all([
+      const [bpRes, fnRes, hplRes, bwRes, stRes, insRes, uitRes] = await Promise.all([
         supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
         supabase.from('fineers').select('*').order('volgorde'),
         supabase.from('hpl').select('*').order('kleur'),
         supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
         supabase.from('staffelregels').select('*').order('van_aantal'),
         supabase.from('instellingen').select('*'),
+        supabase.from('uitsluitingen').select('*'),
       ])
 
       if (bpRes.data?.length) setBaseplaten(bpRes.data)
       if (fnRes.data?.length) setFineers(fnRes.data)
       if (hplRes.data?.length) setHplList(hplRes.data)
+      if (uitRes.data) setUitsluitingen(uitRes.data as UitsluitingRow[])
       if (bwRes.data?.length) {
         setBewerkingen(bwRes.data)
         // Pre-select standaard bewerkingen for fresh configurations
@@ -409,7 +411,21 @@ export default function ConfiguratorPage() {
                           return (
                             <button
                               key={p.id}
-                              onClick={() => setState(s => ({ ...s, afmeting: p, basisplaat: p }))}
+                              onClick={() => setState(s => {
+                                const newState = { ...s, afmeting: p, basisplaat: p }
+                                newState.bewerkingen = s.bewerkingen.filter(b =>
+                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id)
+                                )
+                                if (s.fineer_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id))
+                                  newState.fineer_voor = undefined
+                                if (s.fineer_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id))
+                                  newState.fineer_tegen = undefined
+                                if (s.hpl_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id))
+                                  newState.hpl_voor = undefined
+                                if (s.hpl_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id))
+                                  newState.hpl_tegen = undefined
+                                return newState
+                              })}
                               className={`p-4 rounded-xl border-2 text-left transition-all
                                 ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                             >
@@ -433,7 +449,21 @@ export default function ConfiguratorPage() {
                           return (
                             <button
                               key={p.id}
-                              onClick={() => setState(s => ({ ...s, afmeting: p, basisplaat: p }))}
+                              onClick={() => setState(s => {
+                                const newState = { ...s, afmeting: p, basisplaat: p }
+                                newState.bewerkingen = s.bewerkingen.filter(b =>
+                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id)
+                                )
+                                if (s.fineer_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id))
+                                  newState.fineer_voor = undefined
+                                if (s.fineer_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id))
+                                  newState.fineer_tegen = undefined
+                                if (s.hpl_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id))
+                                  newState.hpl_voor = undefined
+                                if (s.hpl_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id))
+                                  newState.hpl_tegen = undefined
+                                return newState
+                              })}
                               className={`p-4 rounded-xl border-2 text-left transition-all
                                 ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                             >
@@ -498,7 +528,10 @@ export default function ConfiguratorPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     >
                       <option value="">— Geen fineer —</option>
-                      {fineers.filter(f => f.status_lang !== 'niet_beschikbaar' || f.status_kort !== 'niet_beschikbaar').map(f => (
+                      {fineers.filter(f =>
+                        (f.status_lang !== 'niet_beschikbaar' || f.status_kort !== 'niet_beschikbaar') &&
+                        (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id))
+                      ).map(f => (
                         <option key={f.id} value={f.id}>{f.naam}</option>
                       ))}
                     </select>
@@ -525,7 +558,9 @@ export default function ConfiguratorPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     >
                       <option value="">— Geen fineer —</option>
-                      {fineers.map(f => (
+                      {fineers.filter(f =>
+                        !state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id)
+                      ).map(f => (
                         <option key={f.id} value={f.id}>{f.naam}</option>
                       ))}
                     </select>
@@ -626,7 +661,9 @@ export default function ConfiguratorPage() {
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Voorzijde *</label>
                     <div className="space-y-2">
-                      {hplList.map(h => {
+                      {hplList.filter(h =>
+                        !state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id)
+                      ).map(h => {
                         const isSelected = state.hpl_voor?.id === h.id
                         return (
                           <button
@@ -660,7 +697,9 @@ export default function ConfiguratorPage() {
                       >
                         — Geen tegenzijde —
                       </button>
-                      {hplList.map(h => {
+                      {hplList.filter(h =>
+                        !state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id)
+                      ).map(h => {
                         const isSelected = state.hpl_tegen?.id === h.id
                         return (
                           <button
@@ -701,7 +740,13 @@ export default function ConfiguratorPage() {
 
             <div className="grid sm:grid-cols-2 gap-3">
               {bewerkingen
-                .filter(b => b.beschikbaar && (!state.categorie || b.compatibiliteit.includes(state.categorie)))
+                .filter(b =>
+                  b.beschikbaar &&
+                  (!state.categorie || b.compatibiliteit.includes(state.categorie)) &&
+                  (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'bewerking', b.id)) &&
+                  (!state.fineer_voor || !isUitgesloten(uitsluitingen, 'fineer', state.fineer_voor.id, 'bewerking', b.id)) &&
+                  (!state.hpl_voor || !isUitgesloten(uitsluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id))
+                )
                 .map(b => {
                   const isSelected = state.bewerkingen.some(sb => sb.id === b.id)
                   return (
