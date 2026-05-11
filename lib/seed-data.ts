@@ -197,6 +197,7 @@ export const seedBewerkingen: Bewerking[] = [
     prijs: 3.50,
     compatibiliteit: ['kaal', 'fineer', 'hpl'],
     beschikbaar: true,
+    standaard_geselecteerd: true,
     volgorde: 1,
   },
   {
@@ -206,6 +207,7 @@ export const seedBewerkingen: Bewerking[] = [
     prijs: 2.00,
     compatibiliteit: ['kaal', 'fineer'],
     beschikbaar: true,
+    standaard_geselecteerd: true,
     volgorde: 2,
   },
   {
@@ -215,6 +217,7 @@ export const seedBewerkingen: Bewerking[] = [
     prijs: 4.50,
     compatibiliteit: ['kaal'],
     beschikbaar: true,
+    standaard_geselecteerd: false,
     volgorde: 3,
   },
   {
@@ -224,6 +227,7 @@ export const seedBewerkingen: Bewerking[] = [
     prijs: 5.00,
     compatibiliteit: ['kaal', 'hpl'],
     beschikbaar: true,
+    standaard_geselecteerd: false,
     volgorde: 4,
   },
 ]

@@ -759,7 +759,7 @@ export default function AdminPage() {
 
   // Bewerkingen state
   const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
-  const emptyBw = { naam: '', beschrijving: '', prijs: 0, compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, volgorde: 0 }
+  const emptyBw = { naam: '', beschrijving: '', prijs: 0, compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, standaard_geselecteerd: false, volgorde: 0 }
   const [bwModal, setBwModal] = useState<{ open: boolean; item: Bewerking | null; form: typeof emptyBw }>({ open: false, item: null, form: emptyBw })
 
   // Aanvragen sub-tab
@@ -831,7 +831,7 @@ export default function AdminPage() {
   }
 
   function openBwEdit(b: Bewerking) {
-    setBwModal({ open: true, item: b, form: { naam: b.naam, beschrijving: b.beschrijving, prijs: b.prijs, compatibiliteit: [...b.compatibiliteit], beschikbaar: b.beschikbaar, volgorde: b.volgorde } })
+    setBwModal({ open: true, item: b, form: { naam: b.naam, beschrijving: b.beschrijving, prijs: b.prijs, compatibiliteit: [...b.compatibiliteit], beschikbaar: b.beschikbaar, standaard_geselecteerd: b.standaard_geselecteerd ?? false, volgorde: b.volgorde } })
   }
 
   async function saveBw() {
@@ -842,11 +842,11 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       if (item) {
-        const { error } = await supabase.from('bewerkingen').update({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, volgorde: form.volgorde }).eq('id', item.id)
+        const { error } = await supabase.from('bewerkingen').update({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).eq('id', item.id)
         if (error) { toast.error('Opslaan mislukt: ' + error.message, { id: toastId }); return }
         setBewerkingen(b => b.map(x => x.id === item.id ? { ...x, ...form } as Bewerking : x))
       } else {
-        const { data, error } = await supabase.from('bewerkingen').insert({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, volgorde: form.volgorde }).select().single()
+        const { data, error } = await supabase.from('bewerkingen').insert({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).select().single()
         if (error) { toast.error('Toevoegen mislukt: ' + error.message, { id: toastId }); return }
         setBewerkingen(b => [...b, data as Bewerking])
       }
@@ -1858,7 +1858,10 @@ export default function AdminPage() {
                 <tbody>
                   {bewerkingen.map(b => (
                     <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-3 font-medium">{b.naam}</td>
+                      <td className="py-3 px-3 font-medium">
+                        {b.naam}
+                        {b.standaard_geselecteerd && <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-medium">standaard</span>}
+                      </td>
                       <td className="py-3 px-3 text-gray-500 text-xs max-w-48">{b.beschrijving || '—'}</td>
                       <td className="py-3 px-3 text-right">€ {b.prijs.toFixed(2)}</td>
                       <td className="py-3 px-3">
@@ -1940,6 +1943,11 @@ export default function AdminPage() {
                   <div className="flex items-center gap-2">
                     <input type="checkbox" id="bw-beschikbaar" checked={bwModal.form.beschikbaar} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, beschikbaar: e.target.checked } }))} className="w-4 h-4" />
                     <label htmlFor="bw-beschikbaar" className="text-sm text-gray-700">Beschikbaar in configurator</label>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                    <input type="checkbox" id="bw-standaard" checked={bwModal.form.standaard_geselecteerd} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, standaard_geselecteerd: e.target.checked } }))} className="w-4 h-4 accent-amber-500" />
+                    <label htmlFor="bw-standaard" className="text-sm text-amber-800 font-medium">Standaard voorgeselecteerd <span className="font-normal text-amber-600">(klant moet zelf deselecteren)</span></label>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2">

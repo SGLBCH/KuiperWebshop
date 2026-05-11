@@ -122,7 +122,14 @@ export default function ConfiguratorPage() {
       if (bpRes.data?.length) setBaseplaten(bpRes.data)
       if (fnRes.data?.length) setFineers(fnRes.data)
       if (hplRes.data?.length) setHplList(hplRes.data)
-      if (bwRes.data?.length) setBewerkingen(bwRes.data)
+      if (bwRes.data?.length) {
+        setBewerkingen(bwRes.data)
+        // Pre-select standaard bewerkingen for fresh configurations
+        setState(s => s.bewerkingen.length === 0
+          ? { ...s, bewerkingen: bwRes.data.filter((b: Bewerking) => b.standaard_geselecteerd) }
+          : s
+        )
+      }
       if (stRes.data?.length) {
         // staffelregels table has a 'type' or split by van/tot — use all for both for now
         setStaffelFH(stRes.data)

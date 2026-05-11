@@ -64,6 +64,7 @@ export interface Bewerking {
   prijs: number
   compatibiliteit: ('kaal' | 'fineer' | 'hpl')[]
   beschikbaar: boolean
+  standaard_geselecteerd: boolean
   volgorde: number
 }
 
