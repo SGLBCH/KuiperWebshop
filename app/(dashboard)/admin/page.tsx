@@ -552,7 +552,7 @@ export default function AdminPage() {
     { ...emptyHpl(), volgorde: 0 }
   )
 
-  const VOEGMETHODE_OPTIONS = ['gestolpt', 'open_nerf', 'gesloten', 'vlak', 'gebroken']
+  const VOEGMETHODE_OPTIONS = ['gestolpt', 'mixmatch', 'geschoven', 'gedraaid_geschoven']
 
   function openAdd(type: ModalType) {
     setModalType(type)
