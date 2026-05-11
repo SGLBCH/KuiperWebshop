@@ -201,6 +201,286 @@ export default function AdminPage() {
     loadData()
   }, [])
 
+  async function printAanvraag(aanvraagId: string) {
+    const toastId = toast.loading('Aanvraag ophalen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+
+      // Fetch aanvraag + profile
+      const { data: aanvraag } = await supabase
+        .from('aanvragen')
+        .select('id, bericht, totaal_waarde, verstuurd_op, fineerkeuze_tekst, orderlijst_ids, profiles ( naam, bedrijf, adres, kvk, email )')
+        .eq('id', aanvraagId)
+        .single()
+
+      if (!aanvraag) { toast.error('Aanvraag niet gevonden', { id: toastId }); return }
+
+      // Fetch all bewerkingen (for name lookups)
+      const { data: allBewerkingen } = await supabase.from('bewerkingen').select('id, naam')
+      const bewNaam = (id: string) => allBewerkingen?.find(b => b.id === id)?.naam ?? id
+
+      // Fetch orderlijsten + regels for each orderlijst_id
+      const ids: string[] = (aanvraag.orderlijst_ids as string[]) ?? []
+      type RegelData = {
+        id: string; categorie: string; aantal: number; ruimte_indeling: string
+        ruimtes: { naam: string; aantal: number }[]
+        voegmethode: string | null; bewerkingen: string[]
+        prijs_per_stuk: number; totaal_prijs: number
+        basisplaat: { naam: string; dikte_mm: number; breedte_mm: number; lengte_mm: number } | null
+        fineer_voor: { naam: string; gallery_foto_url: string | null } | null
+        fineer_tegen: { naam: string } | null
+        hpl_voor: { kleur: string; gallery_foto_url: string | null } | null
+        hpl_tegen: { kleur: string } | null
+      }
+      type OrderlijstData = { id: string; naam: string; regels: RegelData[] }
+      const orderlijsten: OrderlijstData[] = []
+
+      for (const olId of ids) {
+        const { data: ol } = await supabase.from('orderlijsten').select('id, naam').eq('id', olId).single()
+        const { data: regels } = await supabase
+          .from('orderlijst_regels')
+          .select(`
+            id, categorie, aantal, ruimte_indeling, ruimtes, voegmethode, bewerkingen,
+            prijs_per_stuk, totaal_prijs,
+            basisplaat:baseplaten ( naam, dikte_mm, breedte_mm, lengte_mm ),
+            fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
+            fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam ),
+            hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur, gallery_foto_url ),
+            hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur )
+          `)
+          .eq('orderlijst_id', olId)
+          .order('aangemaakt_op')
+
+        orderlijsten.push({
+          id: olId,
+          naam: ol?.naam ?? olId,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          regels: (regels ?? []).map((r: any) => ({
+            id: r.id,
+            categorie: r.categorie,
+            aantal: r.aantal,
+            ruimte_indeling: r.ruimte_indeling,
+            ruimtes: Array.isArray(r.ruimtes) ? r.ruimtes : (r.ruimtes ? JSON.parse(r.ruimtes) : []),
+            voegmethode: r.voegmethode,
+            bewerkingen: Array.isArray(r.bewerkingen) ? r.bewerkingen : [],
+            prijs_per_stuk: r.prijs_per_stuk,
+            totaal_prijs: r.totaal_prijs,
+            basisplaat: Array.isArray(r.basisplaat) ? r.basisplaat[0] ?? null : r.basisplaat,
+            fineer_voor: Array.isArray(r.fineers_voor) ? r.fineers_voor[0] ?? null : r.fineers_voor,
+            fineer_tegen: Array.isArray(r.fineers_tegen) ? r.fineers_tegen[0] ?? null : r.fineers_tegen,
+            hpl_voor: Array.isArray(r.hpl_voor_data) ? r.hpl_voor_data[0] ?? null : r.hpl_voor_data,
+            hpl_tegen: Array.isArray(r.hpl_tegen_data) ? r.hpl_tegen_data[0] ?? null : r.hpl_tegen_data,
+          }))
+        })
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const profiel = aanvraag.profiles as any
+      const printDate = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
+      const aanvraagDatum = aanvraag.verstuurd_op
+        ? new Date(aanvraag.verstuurd_op).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
+        : '—'
+
+      const fmt = (n: number) => '€ ' + n.toLocaleString('nl-NL', { minimumFractionDigits: 2 })
+
+      const regelRows = orderlijsten.flatMap(ol =>
+        ol.regels.map((r, idx) => {
+          const bp = r.basisplaat
+          const plaatNaam = bp ? `${bp.naam} — ${bp.dikte_mm}mm (${bp.breedte_mm}×${bp.lengte_mm}mm)` : '—'
+          const afwerking = r.categorie === 'fineer'
+            ? [r.fineer_voor?.naam ? `Voor: ${r.fineer_voor.naam}` : null, r.fineer_tegen?.naam ? `Tegen: ${r.fineer_tegen.naam}` : null].filter(Boolean).join(' | ')
+            : r.categorie === 'hpl'
+              ? [r.hpl_voor?.kleur ? `Voor: ${r.hpl_voor.kleur}` : null, r.hpl_tegen?.kleur ? `Tegen: ${r.hpl_tegen.kleur}` : null].filter(Boolean).join(' | ')
+              : 'Kaal'
+          const bewString = r.bewerkingen.length ? r.bewerkingen.map(bewNaam).join(', ') : '—'
+          const fotoUrl = r.fineer_voor?.gallery_foto_url ?? r.hpl_voor?.gallery_foto_url ?? null
+          const aantalStr = r.ruimte_indeling === 'per_ruimte' && r.ruimtes?.length
+            ? r.ruimtes.map((ru: { naam: string; aantal: number }) => `${ru.naam}: ${ru.aantal}×`).join('<br>')
+            : `${r.aantal}×`
+
+          return `
+            <tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
+              <td class="num">${idx + 1}</td>
+              <td>
+                <strong>${plaatNaam}</strong><br>
+                <span class="sub">Categorie: ${r.categorie}</span>
+                ${r.voegmethode ? `<br><span class="sub">Voeg: ${r.voegmethode}</span>` : ''}
+              </td>
+              <td>
+                ${afwerking}
+                ${fotoUrl ? `<br><img src="${fotoUrl}" alt="" class="thumb">` : ''}
+              </td>
+              <td class="bewerkingen">${bewString}</td>
+              <td class="num">${aantalStr}</td>
+              <td class="num money">${fmt(r.prijs_per_stuk)}</td>
+              <td class="num money"><strong>${fmt(r.totaal_prijs)}</strong></td>
+            </tr>
+            ${ol !== orderlijsten[0] || idx !== 0 ? '' : `<!-- first row -->`}`
+        }).join('')
+      )
+
+      // Group headers per orderlijst
+      const sections = orderlijsten.map(ol => `
+        <tr class="ol-header">
+          <td colspan="7"><strong>📋 ${ol.naam}</strong> <span class="sub">(${ol.regels.length} regel${ol.regels.length !== 1 ? 's' : ''})</span></td>
+        </tr>
+        ${ol.regels.map((r, idx) => {
+          const bp = r.basisplaat
+          const plaatNaam = bp ? `${bp.naam} — ${bp.dikte_mm}mm (${bp.breedte_mm}×${bp.lengte_mm}mm)` : '—'
+          const afwerking = r.categorie === 'fineer'
+            ? [r.fineer_voor?.naam ? `Voor: ${r.fineer_voor.naam}` : null, r.fineer_tegen?.naam ? `Tegen: ${r.fineer_tegen.naam}` : null].filter(Boolean).join(' | ')
+            : r.categorie === 'hpl'
+              ? [r.hpl_voor?.kleur ? `Voor: ${r.hpl_voor.kleur}` : null, r.hpl_tegen?.kleur ? `Tegen: ${r.hpl_tegen.kleur}` : null].filter(Boolean).join(' | ')
+              : 'Kaal'
+          const bewString = r.bewerkingen.length ? r.bewerkingen.map(bewNaam).join(', ') : '—'
+          const fotoUrl = r.fineer_voor?.gallery_foto_url ?? r.hpl_voor?.gallery_foto_url ?? null
+          const aantalStr = r.ruimte_indeling === 'per_ruimte' && r.ruimtes?.length
+            ? r.ruimtes.map((ru: { naam: string; aantal: number }) => `${ru.naam}: ${ru.aantal}×`).join('<br>')
+            : `${r.aantal}×`
+          return `
+            <tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
+              <td class="num">${idx + 1}</td>
+              <td>
+                <strong>${plaatNaam}</strong><br>
+                <span class="sub">Categorie: ${r.categorie}</span>
+                ${r.voegmethode ? `<br><span class="sub">Voeg: ${r.voegmethode}</span>` : ''}
+              </td>
+              <td>
+                ${afwerking}
+                ${fotoUrl ? `<br><img src="${fotoUrl}" alt="" class="thumb" crossorigin="anonymous">` : ''}
+              </td>
+              <td>${bewString}</td>
+              <td class="num">${aantalStr}</td>
+              <td class="num money">${fmt(r.prijs_per_stuk)}</td>
+              <td class="num money"><strong>${fmt(r.totaal_prijs)}</strong></td>
+            </tr>`
+        }).join('')}
+      `).join('')
+
+      const html = `<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>Aanvraag — ${orderlijsten.map(o => o.naam).join(', ')}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; padding: 24px 32px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 2px solid #8B6F47; padding-bottom: 16px; }
+  .logo { font-size: 20px; font-weight: 700; color: #8B6F47; }
+  .logo span { font-size: 24px; margin-right: 6px; }
+  .meta { text-align: right; font-size: 10px; color: #666; }
+  .meta strong { display: block; font-size: 14px; color: #1a1a1a; margin-bottom: 2px; }
+  .klant-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .card { background: #f9f7f4; border: 1px solid #e8e0d5; border-radius: 6px; padding: 10px 14px; }
+  .card h3 { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #8B6F47; margin-bottom: 6px; }
+  .card p { margin-bottom: 2px; line-height: 1.5; }
+  .bericht { background: #fffbf0; border: 1px solid #f0e8c8; border-radius: 6px; padding: 10px 14px; margin-bottom: 20px; }
+  .bericht h3 { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #8B6F47; margin-bottom: 6px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 10.5px; }
+  thead tr { background: #8B6F47; color: white; }
+  thead th { padding: 7px 8px; text-align: left; font-weight: 600; font-size: 10px; }
+  thead th.num { text-align: center; }
+  tbody tr.even { background: #fafafa; }
+  tbody tr.odd { background: #fff; }
+  tbody tr.ol-header { background: #f0ebe4; }
+  tbody tr.ol-header td { padding: 6px 8px; font-size: 11px; color: #5c4a35; border-top: 2px solid #d4c4b0; }
+  td { padding: 6px 8px; vertical-align: top; border-bottom: 1px solid #eee; }
+  td.num { text-align: center; white-space: nowrap; }
+  td.money { text-align: right; font-variant-numeric: tabular-nums; }
+  .sub { color: #888; font-size: 9.5px; }
+  .thumb { width: 56px; height: 42px; object-fit: cover; border-radius: 3px; margin-top: 4px; border: 1px solid #ddd; }
+  .totaal-row td { border-top: 2px solid #8B6F47; font-size: 12px; padding: 8px; }
+  .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 9px; color: #999; display: flex; justify-content: space-between; }
+  @media print {
+    body { padding: 0; }
+    button { display: none; }
+    @page { margin: 15mm 12mm; size: A4; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="logo"><span>🪵</span>Kuiper Holland</div>
+      <div style="font-size:10px;color:#666;margin-top:4px;">Veneer &amp; HPL — Interieurbouw B2B</div>
+    </div>
+    <div class="meta">
+      <strong>OFFERTE AANVRAAG</strong>
+      Aanvraagdatum: ${aanvraagDatum}<br>
+      Afgedrukt: ${printDate}<br>
+      Ref: ${aanvraagId.slice(0, 8).toUpperCase()}
+    </div>
+  </div>
+
+  <div class="klant-grid">
+    <div class="card">
+      <h3>Klantgegevens</h3>
+      <p><strong>${profiel?.naam ?? '—'}</strong></p>
+      <p>${profiel?.bedrijf ?? '—'}</p>
+      ${profiel?.adres ? `<p>${profiel.adres}</p>` : ''}
+      ${profiel?.kvk ? `<p>KvK: ${profiel.kvk}</p>` : ''}
+      ${profiel?.email ? `<p>${profiel.email}</p>` : ''}
+    </div>
+    <div class="card">
+      <h3>Aanvraaginfo</h3>
+      <p><strong>Project${orderlijsten.length > 1 ? 'en' : ''}:</strong> ${orderlijsten.map(o => o.naam).join(', ')}</p>
+      <p><strong>Type:</strong> Offerte aanvraag</p>
+      <p><strong>Totaal:</strong> ${fmt(aanvraag.totaal_waarde ?? 0)}</p>
+      ${aanvraag.fineerkeuze_tekst ? `<p><strong>Fineerkeuze:</strong> ${aanvraag.fineerkeuze_tekst}</p>` : ''}
+    </div>
+  </div>
+
+  ${aanvraag.bericht ? `
+  <div class="bericht">
+    <h3>Bericht van klant</h3>
+    <p>${aanvraag.bericht}</p>
+  </div>` : ''}
+
+  <table>
+    <thead>
+      <tr>
+        <th class="num" style="width:28px">#</th>
+        <th style="width:28%">Basisplaat</th>
+        <th style="width:22%">Afwerking</th>
+        <th style="width:18%">Bewerkingen</th>
+        <th class="num" style="width:14%">Aantallen</th>
+        <th class="num" style="width:9%">Stukprijs</th>
+        <th class="num" style="width:9%">Totaal</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${sections}
+      <tr class="totaal-row">
+        <td colspan="6" style="text-align:right"><strong>Totaal aanvraag</strong></td>
+        <td class="num money"><strong>${fmt(aanvraag.totaal_waarde ?? 0)}</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <span>Kuiper Holland B.V. — Intern gebruik</span>
+    <span>Afgedrukt op ${printDate}</span>
+  </div>
+
+  <script>window.onload = function() { window.print(); }<\/script>
+</body>
+</html>`
+
+      toast.dismiss(toastId)
+      const win = window.open('', '_blank', 'width=900,height=700')
+      if (win) {
+        win.document.write(html)
+        win.document.close()
+      } else {
+        toast.error('Pop-up geblokkeerd. Sta pop-ups toe voor deze site.')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Afdrukken mislukt', { id: toastId })
+    }
+  }
+
   // Prijzen state
   const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
   const [fineers, setFineers] = useState<Fineer[]>(seedFineers)
@@ -516,6 +796,7 @@ export default function AdminPage() {
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Verstuurd</th>
                         <th className="text-center py-2 px-3 font-semibold text-gray-600">Bericht</th>
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Fineerkeuze</th>
+                        <th className="py-2 px-3"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -527,6 +808,18 @@ export default function AdminPage() {
                           <td className="py-3 px-3 text-gray-400 text-xs">{a.verstuurd}</td>
                           <td className="py-3 px-3 text-center" title={a.bericht ?? ''}>{a.bericht ? '💬' : '—'}</td>
                           <td className="py-3 px-3 text-xs text-gray-500">{a.fineerkeuze ? `🪵 ${a.fineerkeuze}` : '—'}</td>
+                          <td className="py-3 px-3">
+                            <button
+                              onClick={() => printAanvraag(a.id)}
+                              title="Afdrukken / PDF"
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                              </svg>
+                              Afdrukken
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
