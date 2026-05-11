@@ -191,6 +191,16 @@ export default function AdminPage() {
           })))
         }
 
+        // Fetch catalog data
+        const { data: bpData } = await supabase.from('baseplaten').select('*').order('volgorde', { ascending: true })
+        if (bpData && bpData.length > 0) setBaseplaten(bpData as Baseplaat[])
+
+        const { data: fnData } = await supabase.from('fineers').select('*').order('volgorde', { ascending: true })
+        if (fnData && fnData.length > 0) setFineers(fnData as Fineer[])
+
+        const { data: hplData } = await supabase.from('hpl').select('*').order('volgorde', { ascending: true })
+        if (hplData && hplData.length > 0) setHplList(hplData as HPL[])
+
       } catch (err) {
         console.error('Failed to load admin data:', err)
         // Keep demo data on error
@@ -503,6 +513,236 @@ export default function AdminPage() {
   const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
   const [fineers, setFineers] = useState<Fineer[]>(seedFineers)
   const [hplList, setHplList] = useState<HPL[]>(seedHPL)
+
+  // CRUD modal state
+  type ModalType = 'baseplaat' | 'fineer' | 'hpl' | null
+  const [modalType, setModalType] = useState<ModalType>(null)
+  const [modalItem, setModalItem] = useState<Baseplaat | Fineer | HPL | null>(null)
+
+  // Baseplaat form
+  const emptyBaseplaat = (): Omit<Baseplaat, 'id'> => ({
+    naam: '', dikte_mm: 18, breedte_mm: 1220, lengte_mm: 2440,
+    prijs_per_m2: 0, beschikbaar: true,
+  })
+  const [bpForm, setBpForm] = useState<Omit<Baseplaat, 'id'> & { gallery_foto_url?: string; volgorde?: number }>(
+    { ...emptyBaseplaat(), gallery_foto_url: '', volgorde: 0 }
+  )
+
+  // Fineer form
+  const emptyFineer = (): Omit<Fineer, 'id'> => ({
+    naam: '', prijs_voorzijde_lang: 0, prijs_voorzijde_kort: 0,
+    prijs_tegenzijde_lang: 0, prijs_tegenzijde_kort: 0,
+    voegmethodes: [], voeg_standaard: '', fk_advies: 'fabriek',
+    status_lang: 'beschikbaar', status_kort: 'beschikbaar',
+    info: '', gallery_foto_url: '',
+  })
+  const [fnForm, setFnForm] = useState<Omit<Fineer, 'id'> & { volgorde?: number }>(
+    { ...emptyFineer(), volgorde: 0 }
+  )
+
+  // HPL form
+  const emptyHpl = (): Omit<HPL, 'id'> => ({
+    kleur: '', prijs_lang: 0, prijs_kort: 0,
+    hpl_afm_lang_b: 1310, hpl_afm_lang_l: 2800,
+    hpl_afm_kort_b: 1310, hpl_afm_kort_l: 1300,
+    status_lang: 'beschikbaar', status_kort: 'beschikbaar',
+    info: '', gallery_foto_url: '',
+  })
+  const [hplForm, setHplForm] = useState<Omit<HPL, 'id'> & { volgorde?: number }>(
+    { ...emptyHpl(), volgorde: 0 }
+  )
+
+  const VOEGMETHODE_OPTIONS = ['gestolpt', 'open_nerf', 'gesloten', 'vlak', 'gebroken']
+
+  function openAdd(type: ModalType) {
+    setModalType(type)
+    setModalItem(null)
+    if (type === 'baseplaat') setBpForm({ ...emptyBaseplaat(), gallery_foto_url: '', volgorde: baseplaten.length + 1 })
+    if (type === 'fineer') setFnForm({ ...emptyFineer(), volgorde: fineers.length + 1 })
+    if (type === 'hpl') setHplForm({ ...emptyHpl(), volgorde: hplList.length + 1 })
+  }
+
+  function openEdit(type: ModalType, item: Baseplaat | Fineer | HPL) {
+    setModalType(type)
+    setModalItem(item)
+    if (type === 'baseplaat') {
+      const p = item as Baseplaat & { gallery_foto_url?: string; volgorde?: number }
+      setBpForm({ naam: p.naam, dikte_mm: p.dikte_mm, breedte_mm: p.breedte_mm, lengte_mm: p.lengte_mm,
+        prijs_per_m2: p.prijs_per_m2, beschikbaar: p.beschikbaar, gallery_foto_url: p.gallery_foto_url ?? '', volgorde: p.volgorde ?? 0 })
+    }
+    if (type === 'fineer') {
+      const f = item as Fineer & { volgorde?: number }
+      setFnForm({ naam: f.naam, prijs_voorzijde_lang: f.prijs_voorzijde_lang, prijs_voorzijde_kort: f.prijs_voorzijde_kort,
+        prijs_tegenzijde_lang: f.prijs_tegenzijde_lang, prijs_tegenzijde_kort: f.prijs_tegenzijde_kort,
+        voegmethodes: [...f.voegmethodes], voeg_standaard: f.voeg_standaard, fk_advies: f.fk_advies,
+        status_lang: f.status_lang, status_kort: f.status_kort, info: f.info ?? '', gallery_foto_url: f.gallery_foto_url ?? '',
+        volgorde: f.volgorde ?? 0 })
+    }
+    if (type === 'hpl') {
+      const h = item as HPL & { volgorde?: number }
+      setHplForm({ kleur: h.kleur, prijs_lang: h.prijs_lang, prijs_kort: h.prijs_kort,
+        hpl_afm_lang_b: h.hpl_afm_lang_b, hpl_afm_lang_l: h.hpl_afm_lang_l,
+        hpl_afm_kort_b: h.hpl_afm_kort_b, hpl_afm_kort_l: h.hpl_afm_kort_l,
+        status_lang: h.status_lang, status_kort: h.status_kort, info: h.info ?? '', gallery_foto_url: h.gallery_foto_url ?? '',
+        volgorde: h.volgorde ?? 0 })
+    }
+  }
+
+  async function loadBaseplaten() {
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data } = await supabase.from('baseplaten').select('*').order('volgorde', { ascending: true })
+      if (data && data.length > 0) setBaseplaten(data as Baseplaat[])
+    } catch { /* keep current */ }
+  }
+
+  async function loadFineers() {
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data } = await supabase.from('fineers').select('*').order('volgorde', { ascending: true })
+      if (data && data.length > 0) setFineers(data as Fineer[])
+    } catch { /* keep current */ }
+  }
+
+  async function loadHpl() {
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data } = await supabase.from('hpl').select('*').order('volgorde', { ascending: true })
+      if (data && data.length > 0) setHplList(data as HPL[])
+    } catch { /* keep current */ }
+  }
+
+  async function saveBaseplaat() {
+    if (!bpForm.naam) { toast.error('Naam is verplicht'); return }
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const payload = modalItem
+        ? { id: modalItem.id, ...bpForm }
+        : { ...bpForm }
+      const { error } = await supabase.from('baseplaten').upsert(payload as Record<string, unknown>)
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success(modalItem ? 'Basisplaat bijgewerkt' : 'Basisplaat toegevoegd', { id: toastId })
+      setModalType(null)
+      await loadBaseplaten()
+    } catch (e) {
+      toast.error('Opslaan mislukt', { id: toastId })
+      console.error(e)
+    }
+  }
+
+  async function deleteBaseplaat(id: string) {
+    if (!window.confirm('Weet je zeker dat je deze basisplaat wilt verwijderen?')) return
+    const toastId = toast.loading('Verwijderen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('baseplaten').delete().eq('id', id)
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success('Basisplaat verwijderd', { id: toastId })
+      await loadBaseplaten()
+    } catch (e) {
+      toast.error('Verwijderen mislukt', { id: toastId })
+      console.error(e)
+    }
+  }
+
+  async function saveFineer() {
+    if (!fnForm.naam) { toast.error('Naam is verplicht'); return }
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const payload = modalItem
+        ? { id: modalItem.id, ...fnForm }
+        : { ...fnForm }
+      const { error } = await supabase.from('fineers').upsert(payload as Record<string, unknown>)
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success(modalItem ? 'Fineer bijgewerkt' : 'Fineer toegevoegd', { id: toastId })
+      setModalType(null)
+      await loadFineers()
+    } catch (e) {
+      toast.error('Opslaan mislukt', { id: toastId })
+      console.error(e)
+    }
+  }
+
+  async function deleteFineer(id: string) {
+    if (!window.confirm('Weet je zeker dat je dit fineer wilt verwijderen?')) return
+    const toastId = toast.loading('Verwijderen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('fineers').delete().eq('id', id)
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success('Fineer verwijderd', { id: toastId })
+      await loadFineers()
+    } catch (e) {
+      toast.error('Verwijderen mislukt', { id: toastId })
+      console.error(e)
+    }
+  }
+
+  async function saveHpl() {
+    if (!hplForm.kleur) { toast.error('Kleur is verplicht'); return }
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const payload = modalItem
+        ? { id: modalItem.id, ...hplForm }
+        : { ...hplForm }
+      const { error } = await supabase.from('hpl').upsert(payload as Record<string, unknown>)
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success(modalItem ? 'HPL bijgewerkt' : 'HPL toegevoegd', { id: toastId })
+      setModalType(null)
+      await loadHpl()
+    } catch (e) {
+      toast.error('Opslaan mislukt', { id: toastId })
+      console.error(e)
+    }
+  }
+
+  async function deleteHpl(id: string) {
+    if (!window.confirm('Weet je zeker dat je dit HPL wilt verwijderen?')) return
+    const toastId = toast.loading('Verwijderen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('hpl').delete().eq('id', id)
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success('HPL verwijderd', { id: toastId })
+      await loadHpl()
+    } catch (e) {
+      toast.error('Verwijderen mislukt', { id: toastId })
+      console.error(e)
+    }
+  }
+
+  async function savePrijzen() {
+    const toastId = toast.loading('Prijzen opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const [r1, r2, r3] = await Promise.all([
+        supabase.from('baseplaten').upsert(baseplaten.map(p => ({ id: p.id, prijs_per_m2: p.prijs_per_m2, beschikbaar: p.beschikbaar })) as Record<string, unknown>[]),
+        supabase.from('fineers').upsert(fineers.map(f => ({ id: f.id, prijs_voorzijde_lang: f.prijs_voorzijde_lang, prijs_voorzijde_kort: f.prijs_voorzijde_kort, prijs_tegenzijde_lang: f.prijs_tegenzijde_lang, prijs_tegenzijde_kort: f.prijs_tegenzijde_kort, fk_advies: f.fk_advies })) as Record<string, unknown>[]),
+        supabase.from('hpl').upsert(hplList.map(h => ({ id: h.id, prijs_lang: h.prijs_lang, prijs_kort: h.prijs_kort })) as Record<string, unknown>[]),
+      ])
+      if (r1.error || r2.error || r3.error) {
+        toast.error('Sommige prijzen konden niet worden opgeslagen', { id: toastId })
+        return
+      }
+      toast.success('Prijzen opgeslagen', { id: toastId })
+    } catch (e) {
+      toast.error('Opslaan mislukt', { id: toastId })
+      console.error(e)
+    }
+  }
 
   // Staffel state
   const [staffelFH, setStaffelFH] = useState<StaffelRegel[]>(seedStaffelFineerHPL)
@@ -898,12 +1138,20 @@ export default function AdminPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Basisplaten</h3>
-                <button
-                  onClick={() => exportCsv(baseplaten as unknown as Record<string, unknown>[], 'basisplaten.csv')}
-                  className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
-                >
-                  CSV Exporteren
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openAdd('baseplaat')}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    + Nieuw toevoegen
+                  </button>
+                  <button
+                    onClick={() => exportCsv(baseplaten as unknown as Record<string, unknown>[], 'basisplaten.csv')}
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                  >
+                    CSV Exporteren
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -915,6 +1163,7 @@ export default function AdminPage() {
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Lengte</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">€/m²</th>
                       <th className="text-center py-2 px-2 font-semibold text-gray-500">Actief</th>
+                      <th className="py-2 px-2"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -941,6 +1190,22 @@ export default function AdminPage() {
                             className="w-4 h-4"
                           />
                         </td>
+                        <td className="py-2 px-2">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => openEdit('baseplaat', p)}
+                              className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                            >
+                              Bewerken
+                            </button>
+                            <button
+                              onClick={() => deleteBaseplaat(p.id)}
+                              className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
+                            >
+                              Verwijderen
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -952,12 +1217,20 @@ export default function AdminPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Fineers</h3>
-                <button
-                  onClick={() => exportCsv(fineers as unknown as Record<string, unknown>[], 'fineers.csv')}
-                  className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
-                >
-                  CSV Exporteren
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openAdd('fineer')}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    + Nieuw toevoegen
+                  </button>
+                  <button
+                    onClick={() => exportCsv(fineers as unknown as Record<string, unknown>[], 'fineers.csv')}
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                  >
+                    CSV Exporteren
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -970,6 +1243,10 @@ export default function AdminPage() {
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Tegen kort</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-500">FK Advies</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-500">Status lang</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Status kort</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Voegmethodes</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Info</th>
+                      <th className="py-2 px-2"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1009,6 +1286,37 @@ export default function AdminPage() {
                             {f.status_lang}
                           </Badge>
                         </td>
+                        <td className="py-2 px-2">
+                          <Badge variant={f.status_kort === 'beschikbaar' ? 'active' : f.status_kort === 'tijdelijk_niet' ? 'warning' : 'inactive'}>
+                            {f.status_kort}
+                          </Badge>
+                        </td>
+                        <td className="py-2 px-2">
+                          <div className="flex flex-wrap gap-1">
+                            {f.voegmethodes.map(v => (
+                              <span key={v} className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">{v}</span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-2 px-2 text-xs text-gray-500 max-w-32 truncate" title={f.info}>
+                          {f.info ? (f.info.length > 40 ? f.info.slice(0, 40) + '…' : f.info) : '—'}
+                        </td>
+                        <td className="py-2 px-2">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => openEdit('fineer', f)}
+                              className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                            >
+                              Bewerken
+                            </button>
+                            <button
+                              onClick={() => deleteFineer(f.id)}
+                              className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
+                            >
+                              Verwijderen
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1020,12 +1328,20 @@ export default function AdminPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">HPL</h3>
-                <button
-                  onClick={() => exportCsv(hplList as unknown as Record<string, unknown>[], 'hpl.csv')}
-                  className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
-                >
-                  CSV Exporteren
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openAdd('hpl')}
+                    className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    + Nieuw toevoegen
+                  </button>
+                  <button
+                    onClick={() => exportCsv(hplList as unknown as Record<string, unknown>[], 'hpl.csv')}
+                    className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                  >
+                    CSV Exporteren
+                  </button>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1037,6 +1353,7 @@ export default function AdminPage() {
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Plaat B lang</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Plaat L lang</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-500">Status lang</th>
+                      <th className="py-2 px-2"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1068,6 +1385,22 @@ export default function AdminPage() {
                             {h.status_lang}
                           </Badge>
                         </td>
+                        <td className="py-2 px-2">
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => openEdit('hpl', h)}
+                              className="px-2 py-1 text-xs bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
+                            >
+                              Bewerken
+                            </button>
+                            <button
+                              onClick={() => deleteHpl(h.id)}
+                              className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
+                            >
+                              Verwijderen
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1076,7 +1409,7 @@ export default function AdminPage() {
             </div>
 
             <button
-              onClick={() => toast.success('Prijzen opgeslagen')}
+              onClick={savePrijzen}
               className="px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700"
             >
               Prijzen opslaan
@@ -1165,11 +1498,302 @@ export default function AdminPage() {
               activeTab === 'galerij_fineer' ? 'Galerij Fineer' : 'Galerij HPL'
             }
             items={
-              activeTab === 'galerij_basisplaat' ? seedBaseplaten.map(p => ({ id: p.id, naam: p.naam, url: undefined })) :
-              activeTab === 'galerij_fineer' ? seedFineers.map(f => ({ id: f.id, naam: f.naam, url: f.gallery_foto_url })) :
-              seedHPL.map(h => ({ id: h.id, naam: h.kleur, url: h.gallery_foto_url }))
+              activeTab === 'galerij_basisplaat'
+                ? baseplaten.map(p => ({ id: p.id, naam: p.naam, url: (p as Baseplaat & { gallery_foto_url?: string }).gallery_foto_url }))
+                : activeTab === 'galerij_fineer'
+                  ? fineers.map(f => ({ id: f.id, naam: f.naam, url: f.gallery_foto_url }))
+                  : hplList.map(h => ({ id: h.id, naam: h.kleur, url: h.gallery_foto_url }))
             }
+            tableName={
+              activeTab === 'galerij_basisplaat' ? 'baseplaten' :
+              activeTab === 'galerij_fineer' ? 'fineers' : 'hpl'
+            }
+            onUrlChange={(id, url) => {
+              if (activeTab === 'galerij_basisplaat') {
+                setBaseplaten(arr => arr.map(x => x.id === id ? { ...x, gallery_foto_url: url } as Baseplaat & { gallery_foto_url?: string } : x))
+              } else if (activeTab === 'galerij_fineer') {
+                setFineers(arr => arr.map(x => x.id === id ? { ...x, gallery_foto_url: url } : x))
+              } else {
+                setHplList(arr => arr.map(x => x.id === id ? { ...x, gallery_foto_url: url } : x))
+              }
+            }}
           />
+        )}
+
+        {/* ─── CRUD MODALS ─── */}
+        {modalType !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e => { if (e.target === e.currentTarget) setModalType(null) }}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+
+              {/* ── Baseplaat modal ── */}
+              {modalType === 'baseplaat' && (
+                <>
+                  <h3 className="text-base font-semibold text-gray-800 mb-4">{modalItem ? 'Basisplaat bewerken' : 'Nieuwe basisplaat'}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Naam *</label>
+                      <input type="text" value={bpForm.naam} onChange={e => setBpForm(f => ({ ...f, naam: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Dikte (mm)</label>
+                        <input type="number" value={bpForm.dikte_mm} onChange={e => setBpForm(f => ({ ...f, dikte_mm: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Breedte (mm)</label>
+                        <input type="number" value={bpForm.breedte_mm} onChange={e => setBpForm(f => ({ ...f, breedte_mm: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Lengte (mm)</label>
+                        <input type="number" value={bpForm.lengte_mm} onChange={e => setBpForm(f => ({ ...f, lengte_mm: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Prijs per m² (€)</label>
+                        <input type="number" step="0.01" value={bpForm.prijs_per_m2} onChange={e => setBpForm(f => ({ ...f, prijs_per_m2: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Volgorde</label>
+                        <input type="number" value={bpForm.volgorde ?? 0} onChange={e => setBpForm(f => ({ ...f, volgorde: parseInt(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Foto URL (optioneel)</label>
+                      <input type="text" value={bpForm.gallery_foto_url ?? ''} onChange={e => setBpForm(f => ({ ...f, gallery_foto_url: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      {bpForm.gallery_foto_url && (
+                        <img src={bpForm.gallery_foto_url} alt="" className="mt-2 h-16 w-24 object-cover rounded border border-gray-200" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input type="checkbox" id="bp-beschikbaar" checked={bpForm.beschikbaar} onChange={e => setBpForm(f => ({ ...f, beschikbaar: e.target.checked }))} className="w-4 h-4" />
+                      <label htmlFor="bp-beschikbaar" className="text-sm text-gray-700">Beschikbaar</label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-5">
+                    <button onClick={() => setModalType(null)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Annuleren</button>
+                    <button onClick={saveBaseplaat} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">Opslaan</button>
+                  </div>
+                </>
+              )}
+
+              {/* ── Fineer modal ── */}
+              {modalType === 'fineer' && (
+                <>
+                  <h3 className="text-base font-semibold text-gray-800 mb-4">{modalItem ? 'Fineer bewerken' : 'Nieuw fineer'}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Naam *</label>
+                      <input type="text" value={fnForm.naam} onChange={e => setFnForm(f => ({ ...f, naam: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Prijs voorzijde lang (€)</label>
+                        <input type="number" step="0.01" value={fnForm.prijs_voorzijde_lang} onChange={e => setFnForm(f => ({ ...f, prijs_voorzijde_lang: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Prijs voorzijde kort (€)</label>
+                        <input type="number" step="0.01" value={fnForm.prijs_voorzijde_kort} onChange={e => setFnForm(f => ({ ...f, prijs_voorzijde_kort: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Prijs tegenzijde lang (€)</label>
+                        <input type="number" step="0.01" value={fnForm.prijs_tegenzijde_lang} onChange={e => setFnForm(f => ({ ...f, prijs_tegenzijde_lang: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Prijs tegenzijde kort (€)</label>
+                        <input type="number" step="0.01" value={fnForm.prijs_tegenzijde_kort} onChange={e => setFnForm(f => ({ ...f, prijs_tegenzijde_kort: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Voegmethodes</label>
+                      <div className="flex flex-wrap gap-2">
+                        {VOEGMETHODE_OPTIONS.map(v => (
+                          <label key={v} className="flex items-center gap-1 text-sm">
+                            <input type="checkbox" checked={fnForm.voegmethodes.includes(v)}
+                              onChange={e => {
+                                const next = e.target.checked
+                                  ? [...fnForm.voegmethodes, v]
+                                  : fnForm.voegmethodes.filter(x => x !== v)
+                                const std = next.includes(fnForm.voeg_standaard) ? fnForm.voeg_standaard : (next[0] ?? '')
+                                setFnForm(f => ({ ...f, voegmethodes: next, voeg_standaard: std }))
+                              }} className="w-3.5 h-3.5" />
+                            {v}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Voeg standaard</label>
+                      {fnForm.voegmethodes.length > 0 ? (
+                        <select value={fnForm.voeg_standaard} onChange={e => setFnForm(f => ({ ...f, voeg_standaard: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          {fnForm.voegmethodes.map(v => <option key={v} value={v}>{v}</option>)}
+                        </select>
+                      ) : (
+                        <input type="text" value={fnForm.voeg_standaard} onChange={e => setFnForm(f => ({ ...f, voeg_standaard: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">FK Advies</label>
+                        <select value={fnForm.fk_advies} onChange={e => setFnForm(f => ({ ...f, fk_advies: e.target.value as Fineer['fk_advies'] }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="fabriek">Fabriek</option>
+                          <option value="foto_kuiper">Foto Kuiper</option>
+                          <option value="foto_klant">Foto klant</option>
+                          <option value="persoonlijk">Persoonlijk</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Status lang</label>
+                        <select value={fnForm.status_lang} onChange={e => setFnForm(f => ({ ...f, status_lang: e.target.value as Fineer['status_lang'] }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="beschikbaar">Beschikbaar</option>
+                          <option value="tijdelijk_niet">Tijdelijk niet</option>
+                          <option value="niet_beschikbaar">Niet beschikbaar</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Status kort</label>
+                        <select value={fnForm.status_kort} onChange={e => setFnForm(f => ({ ...f, status_kort: e.target.value as Fineer['status_kort'] }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="beschikbaar">Beschikbaar</option>
+                          <option value="tijdelijk_niet">Tijdelijk niet</option>
+                          <option value="niet_beschikbaar">Niet beschikbaar</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Info (voor klant)</label>
+                      <textarea value={fnForm.info ?? ''} onChange={e => setFnForm(f => ({ ...f, info: e.target.value }))} rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Foto URL (optioneel)</label>
+                      <input type="text" value={fnForm.gallery_foto_url ?? ''} onChange={e => setFnForm(f => ({ ...f, gallery_foto_url: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      {fnForm.gallery_foto_url && (
+                        <img src={fnForm.gallery_foto_url} alt="" className="mt-2 h-16 w-24 object-cover rounded border border-gray-200" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Volgorde</label>
+                      <input type="number" value={fnForm.volgorde ?? 0} onChange={e => setFnForm(f => ({ ...f, volgorde: parseInt(e.target.value) || 0 }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-5">
+                    <button onClick={() => setModalType(null)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Annuleren</button>
+                    <button onClick={saveFineer} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">Opslaan</button>
+                  </div>
+                </>
+              )}
+
+              {/* ── HPL modal ── */}
+              {modalType === 'hpl' && (
+                <>
+                  <h3 className="text-base font-semibold text-gray-800 mb-4">{modalItem ? 'HPL bewerken' : 'Nieuw HPL'}</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Kleur *</label>
+                      <input type="text" value={hplForm.kleur} onChange={e => setHplForm(f => ({ ...f, kleur: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Prijs lang (€)</label>
+                        <input type="number" step="0.01" value={hplForm.prijs_lang} onChange={e => setHplForm(f => ({ ...f, prijs_lang: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Prijs kort (€)</label>
+                        <input type="number" step="0.01" value={hplForm.prijs_kort} onChange={e => setHplForm(f => ({ ...f, prijs_kort: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Afm. lang breedte (mm)</label>
+                        <input type="number" value={hplForm.hpl_afm_lang_b} onChange={e => setHplForm(f => ({ ...f, hpl_afm_lang_b: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Afm. lang lengte (mm)</label>
+                        <input type="number" value={hplForm.hpl_afm_lang_l} onChange={e => setHplForm(f => ({ ...f, hpl_afm_lang_l: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Afm. kort breedte (mm)</label>
+                        <input type="number" value={hplForm.hpl_afm_kort_b} onChange={e => setHplForm(f => ({ ...f, hpl_afm_kort_b: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Afm. kort lengte (mm)</label>
+                        <input type="number" value={hplForm.hpl_afm_kort_l} onChange={e => setHplForm(f => ({ ...f, hpl_afm_kort_l: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Status lang</label>
+                        <select value={hplForm.status_lang} onChange={e => setHplForm(f => ({ ...f, status_lang: e.target.value as HPL['status_lang'] }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="beschikbaar">Beschikbaar</option>
+                          <option value="tijdelijk_niet">Tijdelijk niet</option>
+                          <option value="niet_beschikbaar">Niet beschikbaar</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Status kort</label>
+                        <select value={hplForm.status_kort} onChange={e => setHplForm(f => ({ ...f, status_kort: e.target.value as HPL['status_kort'] }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                          <option value="beschikbaar">Beschikbaar</option>
+                          <option value="tijdelijk_niet">Tijdelijk niet</option>
+                          <option value="niet_beschikbaar">Niet beschikbaar</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Info (voor klant)</label>
+                      <textarea value={hplForm.info ?? ''} onChange={e => setHplForm(f => ({ ...f, info: e.target.value }))} rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Foto URL (optioneel)</label>
+                      <input type="text" value={hplForm.gallery_foto_url ?? ''} onChange={e => setHplForm(f => ({ ...f, gallery_foto_url: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      {hplForm.gallery_foto_url && (
+                        <img src={hplForm.gallery_foto_url} alt="" className="mt-2 h-16 w-24 object-cover rounded border border-gray-200" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Volgorde</label>
+                      <input type="number" value={hplForm.volgorde ?? 0} onChange={e => setHplForm(f => ({ ...f, volgorde: parseInt(e.target.value) || 0 }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-5">
+                    <button onClick={() => setModalType(null)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Annuleren</button>
+                    <button onClick={saveHpl} className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700">Opslaan</button>
+                  </div>
+                </>
+              )}
+
+            </div>
+          </div>
         )}
 
         {/* ─── BEWERKINGEN ─── */}
@@ -1337,70 +1961,67 @@ function StaffelTable({
 function GallerijTab({
   title,
   items,
+  tableName,
+  onUrlChange,
 }: {
   title: string
   items: { id: string; naam: string; url: string | undefined }[]
+  tableName: string
+  onUrlChange: (id: string, url: string) => void
 }) {
-  const [images, setImages] = useState<Record<string, string>>(
-    Object.fromEntries(items.filter(i => i.url).map(i => [i.id, i.url!]))
+  const [urlInputs, setUrlInputs] = useState<Record<string, string>>(
+    Object.fromEntries(items.map(i => [i.id, i.url ?? '']))
   )
 
-  function handleUpload(id: string, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = ev => {
-      setImages(imgs => ({ ...imgs, [id]: ev.target?.result as string }))
+  async function saveUrl(id: string) {
+    const url = urlInputs[id] ?? ''
+    onUrlChange(id, url)
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      await supabase.from(tableName).update({ gallery_foto_url: url || null }).eq('id', id)
+      toast.success('URL opgeslagen')
+    } catch (e) {
+      toast.error('Opslaan mislukt')
+      console.error(e)
     }
-    reader.readAsDataURL(file)
-  }
-
-  function deleteImage(id: string) {
-    setImages(imgs => {
-      const copy = { ...imgs }
-      delete copy[id]
-      return copy
-    })
   }
 
   return (
     <div className="p-6">
       <h2 className="text-lg font-semibold text-gray-800 mb-4">{title}</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="space-y-3">
         {items.map(item => (
-          <div key={item.id} className="border border-gray-200 rounded-xl overflow-hidden">
-            <div className="h-32 bg-gray-50 flex items-center justify-center relative">
-              {images[item.id] ? (
-                <>
-                  <img
-                    src={images[item.id]}
-                    alt={item.naam}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    onClick={() => deleteImage(item.id)}
-                    className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs flex items-center justify-center hover:bg-red-600"
-                  >
-                    ✕
-                  </button>
-                </>
+          <div key={item.id} className="flex items-center gap-4 border border-gray-200 rounded-xl p-3">
+            <div className="w-20 h-16 flex-shrink-0 bg-gray-50 rounded-lg overflow-hidden flex items-center justify-center border border-gray-100">
+              {urlInputs[item.id] ? (
+                <img
+                  src={urlInputs[item.id]}
+                  alt={item.naam}
+                  className="w-full h-full object-cover"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
               ) : (
-                <span className="text-3xl opacity-30">🪵</span>
+                <span className="text-2xl opacity-20">🪵</span>
               )}
             </div>
-            <div className="p-2">
-              <p className="text-xs font-medium text-gray-700 truncate">{item.naam}</p>
-              <label className="mt-1 block">
-                <span className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded cursor-pointer hover:bg-blue-100 inline-block">
-                  Upload
-                </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-700 mb-1 truncate">{item.naam}</p>
+              <div className="flex gap-2">
                 <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => handleUpload(item.id, e)}
+                  type="text"
+                  value={urlInputs[item.id] ?? ''}
+                  onChange={e => setUrlInputs(u => ({ ...u, [item.id]: e.target.value }))}
+                  placeholder="https://…"
+                  className="flex-1 px-2 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </label>
+                <button
+                  onClick={() => saveUrl(item.id)}
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 whitespace-nowrap"
+                >
+                  Opslaan
+                </button>
+              </div>
             </div>
           </div>
         ))}
