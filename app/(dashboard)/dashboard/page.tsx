@@ -28,10 +28,10 @@ type OrderlijstRegel = {
   prijs_per_stuk: number
   totaal_prijs: number
   baseplaten?: { naam: string; dikte_mm: number }
-  fineers_voor?: { naam: string } | null
-  fineers_tegen?: { naam: string } | null
-  hpl_voor_data?: { kleur: string } | null
-  hpl_tegen_data?: { kleur: string } | null
+  fineers_voor?: { naam: string; gallery_foto_url?: string | null } | null
+  fineers_tegen?: { naam: string; gallery_foto_url?: string | null } | null
+  hpl_voor_data?: { kleur: string; gallery_foto_url?: string | null } | null
+  hpl_tegen_data?: { kleur: string; gallery_foto_url?: string | null } | null
 }
 
 type Tab = 'shop' | 'orders' | 'orderlijst'
@@ -356,10 +356,10 @@ export default function DashboardPage() {
       .select(`
         *,
         baseplaten ( naam, dikte_mm ),
-        fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam ),
-        fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam ),
-        hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur ),
-        hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur )
+        fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
+        fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam, gallery_foto_url ),
+        hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur, gallery_foto_url ),
+        hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur, gallery_foto_url )
       `)
       .eq('orderlijst_id', lijst.id)
       .order('id')
@@ -727,6 +727,8 @@ export default function DashboardPage() {
                   {viewModal.regels.map((regel, i) => {
                     const plaatNaam = (regel.baseplaten as { naam: string; dikte_mm: number } | null)?.naam ?? '—'
                     const plaatDikte = (regel.baseplaten as { naam: string; dikte_mm: number } | null)?.dikte_mm ?? '—'
+                    const fotoUrl = (regel.fineers_voor as { gallery_foto_url?: string | null } | null)?.gallery_foto_url
+                      ?? (regel.hpl_voor_data as { gallery_foto_url?: string | null } | null)?.gallery_foto_url
                     const afwerkingLabel = regel.categorie === 'fineer'
                       ? `Fineer: ${(regel.fineers_voor as { naam: string } | null)?.naam ?? '—'} / ${(regel.fineers_tegen as { naam: string } | null)?.naam ?? '—'}`
                       : regel.categorie === 'hpl'
@@ -735,6 +737,9 @@ export default function DashboardPage() {
                     return (
                       <div key={regel.id} className="bg-gray-50 rounded-xl border border-gray-200 p-4">
                         <div className="flex items-start justify-between gap-4">
+                          {fotoUrl && (
+                            <img src={fotoUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 shrink-0" />
+                          )}
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-semibold text-sm text-gray-800">#{i + 1} — {plaatNaam} {plaatDikte}mm</span>

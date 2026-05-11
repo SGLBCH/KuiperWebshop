@@ -21,6 +21,8 @@ export interface Baseplaat {
   lengte_mm: number
   prijs_per_m2: number
   beschikbaar: boolean
+  gallery_foto_url?: string | null
+  volgorde?: number
 }
 
 // ─── Fineer ────────────────────────────────────────────────────────────────────

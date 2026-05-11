@@ -370,7 +370,15 @@ export default function ConfiguratorPage() {
                     className={`relative p-4 rounded-xl border-2 text-left transition-all hover:shadow-sm
                       ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                   >
-                    <div className="text-2xl mb-2">🪵</div>
+                    {variants[0]?.gallery_foto_url ? (
+                      <img
+                        src={variants[0].gallery_foto_url}
+                        alt={naam}
+                        className="w-full h-20 object-cover rounded-lg mb-2 border border-gray-100"
+                      />
+                    ) : (
+                      <div className="text-2xl mb-2">🪵</div>
+                    )}
                     <p className="font-semibold text-gray-800">{naam}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{diktes.join(', ')}mm</p>
                     {isSelected && (
@@ -537,10 +545,11 @@ export default function ConfiguratorPage() {
                     </select>
                     {state.fineer_voor && (
                       <div className="mt-2 flex items-center gap-2">
-                        <div
-                          className="w-8 h-8 rounded border border-gray-200"
-                          style={{ backgroundColor: WOOD_COLORS[state.fineer_voor.naam] ?? '#D4B896' }}
-                        />
+                        {state.fineer_voor.gallery_foto_url ? (
+                          <img src={state.fineer_voor.gallery_foto_url} alt={state.fineer_voor.naam} className="w-10 h-10 rounded border border-gray-200 object-cover shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded border border-gray-200 shrink-0" style={{ backgroundColor: WOOD_COLORS[state.fineer_voor.naam] ?? '#D4B896' }} />
+                        )}
                         <span className="text-xs text-gray-500">
                           {isLang ? `€ ${state.fineer_voor.prijs_voorzijde_lang.toFixed(2)}/m² (lang)` : `€ ${state.fineer_voor.prijs_voorzijde_kort.toFixed(2)}/m² (kort)`}
                         </span>
@@ -566,10 +575,11 @@ export default function ConfiguratorPage() {
                     </select>
                     {state.fineer_tegen && (
                       <div className="mt-2 flex items-center gap-2">
-                        <div
-                          className="w-8 h-8 rounded border border-gray-200"
-                          style={{ backgroundColor: WOOD_COLORS[state.fineer_tegen.naam] ?? '#D4B896' }}
-                        />
+                        {state.fineer_tegen.gallery_foto_url ? (
+                          <img src={state.fineer_tegen.gallery_foto_url} alt={state.fineer_tegen.naam} className="w-10 h-10 rounded border border-gray-200 object-cover shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 rounded border border-gray-200 shrink-0" style={{ backgroundColor: WOOD_COLORS[state.fineer_tegen.naam] ?? '#D4B896' }} />
+                        )}
                         <span className="text-xs text-gray-500">
                           {isLang ? `€ ${state.fineer_tegen.prijs_tegenzijde_lang.toFixed(2)}/m² (lang)` : `€ ${state.fineer_tegen.prijs_tegenzijde_kort.toFixed(2)}/m² (kort)`}
                         </span>
@@ -672,10 +682,11 @@ export default function ConfiguratorPage() {
                             className={`w-full flex items-center gap-3 p-2.5 rounded-xl border-2 text-left transition-all
                               ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                           >
-                            <div
-                              className="w-8 h-8 rounded border border-gray-300 shrink-0"
-                              style={{ backgroundColor: HPL_COLORS[h.kleur] ?? '#ccc' }}
-                            />
+                            {h.gallery_foto_url ? (
+                              <img src={h.gallery_foto_url} alt={h.kleur} className="w-8 h-8 rounded border border-gray-300 shrink-0 object-cover" />
+                            ) : (
+                              <div className="w-8 h-8 rounded border border-gray-300 shrink-0" style={{ backgroundColor: HPL_COLORS[h.kleur] ?? '#ccc' }} />
+                            )}
                             <div>
                               <p className="text-sm font-medium text-gray-800">{h.kleur}</p>
                               <p className="text-xs text-gray-400">
@@ -708,10 +719,11 @@ export default function ConfiguratorPage() {
                             className={`w-full flex items-center gap-3 p-2.5 rounded-xl border-2 text-left transition-all
                               ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                           >
-                            <div
-                              className="w-8 h-8 rounded border border-gray-300 shrink-0"
-                              style={{ backgroundColor: HPL_COLORS[h.kleur] ?? '#ccc' }}
-                            />
+                            {h.gallery_foto_url ? (
+                              <img src={h.gallery_foto_url} alt={h.kleur} className="w-8 h-8 rounded border border-gray-300 shrink-0 object-cover" />
+                            ) : (
+                              <div className="w-8 h-8 rounded border border-gray-300 shrink-0" style={{ backgroundColor: HPL_COLORS[h.kleur] ?? '#ccc' }} />
+                            )}
                             <div>
                               <p className="text-sm font-medium text-gray-800">{h.kleur}</p>
                             </div>
