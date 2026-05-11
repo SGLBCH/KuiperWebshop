@@ -228,8 +228,8 @@ export default function AdminPage() {
         voegmethode: string | null; bewerkingen: string[]
         prijs_per_stuk: number; totaal_prijs: number
         basisplaat: { naam: string; dikte_mm: number; breedte_mm: number; lengte_mm: number } | null
-        fineer_voor: { naam: string; gallery_foto_url: string | null } | null
-        fineer_tegen: { naam: string } | null
+        fineer_voor: { naam: string; gallery_foto_url: string | null; fk_advies: string } | null
+        fineer_tegen: { naam: string; fk_advies: string } | null
         hpl_voor: { kleur: string; gallery_foto_url: string | null } | null
         hpl_tegen: { kleur: string } | null
       }
@@ -244,8 +244,8 @@ export default function AdminPage() {
             id, categorie, aantal, ruimte_indeling, ruimtes, voegmethode, bewerkingen,
             prijs_per_stuk, totaal_prijs,
             basisplaat:baseplaten ( naam, dikte_mm, breedte_mm, lengte_mm ),
-            fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
-            fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam ),
+            fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url, fk_advies ),
+            fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam, fk_advies ),
             hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur, gallery_foto_url ),
             hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur )
           `)
@@ -284,6 +284,16 @@ export default function AdminPage() {
 
       const fmt = (n: number) => '€ ' + n.toLocaleString('nl-NL', { minimumFractionDigits: 2 })
 
+
+      const fkAdviesLabel = (advies: string | undefined): string => {
+        const labels: Record<string, string> = {
+          fabriek:      '📋 Fineerkeuze: <strong>Fabriek</strong> (standaard)',
+          foto_kuiper:  '📷 Fineerkeuze: <strong>Foto Kuiper Holland</strong>',
+          foto_klant:   '⚠️ Fineerkeuze: <strong>Foto klant</strong> — verplicht aanleveren',
+          persoonlijk:  '🤝 Fineerkeuze: <strong>Persoonlijk overleg</strong> vereist',
+        }
+        return advies ? (labels[advies] ?? advies) : ''
+      }
       const regelRows = orderlijsten.flatMap(ol =>
         ol.regels.map((r, idx) => {
           const bp = r.basisplaat
@@ -338,6 +348,9 @@ export default function AdminPage() {
           const aantalStr = r.ruimte_indeling === 'per_ruimte' && r.ruimtes?.length
             ? r.ruimtes.map((ru: { naam: string; aantal: number }) => `${ru.naam}: ${ru.aantal}×`).join('<br>')
             : `${r.aantal}×`
+          const fkVoor = fkAdviesLabel(r.fineer_voor?.fk_advies)
+          const fkTegen = r.fineer_tegen?.fk_advies && r.fineer_tegen.fk_advies !== r.fineer_voor?.fk_advies
+            ? fkAdviesLabel(r.fineer_tegen.fk_advies) : ''
           return `
             <tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
               <td class="num">${idx + 1}</td>
@@ -348,6 +361,8 @@ export default function AdminPage() {
               </td>
               <td>
                 ${afwerking}
+                ${fkVoor ? `<br><span class="fk-advies">${fkVoor}</span>` : ''}
+                ${fkTegen ? `<br><span class="fk-advies">${fkTegen}</span>` : ''}
                 ${fotoUrl ? `<br><img src="${fotoUrl}" alt="" class="thumb" crossorigin="anonymous">` : ''}
               </td>
               <td>${bewString}</td>
@@ -390,6 +405,7 @@ export default function AdminPage() {
   td.money { text-align: right; font-variant-numeric: tabular-nums; }
   .sub { color: #888; font-size: 9.5px; }
   .thumb { width: 56px; height: 42px; object-fit: cover; border-radius: 3px; margin-top: 4px; border: 1px solid #ddd; }
+  .fk-advies { display: inline-block; margin-top: 4px; padding: 2px 6px; background: #fff8ec; border: 1px solid #f0d090; border-radius: 4px; font-size: 9px; color: #7a5200; line-height: 1.5; }
   .totaal-row td { border-top: 2px solid #8B6F47; font-size: 12px; padding: 8px; }
   .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 9px; color: #999; display: flex; justify-content: space-between; }
   @media print {
