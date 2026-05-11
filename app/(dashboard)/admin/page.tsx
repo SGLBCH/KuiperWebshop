@@ -24,6 +24,9 @@ type AdminTab =
   | 'galerij_fineer'
   | 'galerij_hpl'
   | 'bewerkingen'
+  | 'uitsluitingen'
+
+type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 
 const DEMO_AANMELDINGEN = [
   { id: 'a1', naam: 'Pieter Smit', bedrijf: 'Smit Interieur', email: 'p.smit@smitinterieur.nl', datum: '2026-05-07', rol: 'kijker' as const },
@@ -203,6 +206,9 @@ export default function AdminPage() {
 
         const { data: bwData } = await supabase.from('bewerkingen').select('*').order('volgorde', { ascending: true })
         if (bwData && bwData.length > 0) setBewerkingen(bwData as Bewerking[])
+
+        const { data: uitData } = await supabase.from('uitsluitingen').select('*')
+        if (uitData) setUitsluitingen(uitData as UitsluitingRow[])
 
       } catch (err) {
         console.error('Failed to load admin data:', err)
@@ -759,6 +765,13 @@ export default function AdminPage() {
 
   // Bewerkingen state
   const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
+
+  // Uitsluitingen state
+  const [uitsluitingen, setUitsluitingen] = useState<UitsluitingRow[]>([])
+
+  // Uitsluiting modal state
+  const emptyUitForm = { subject_type: 'basisplaat', subject_id: '', uitgesloten_type: 'bewerking', uitgesloten_id: '', reden: '' }
+  const [uitModal, setUitModal] = useState<{ open: boolean; form: typeof emptyUitForm }>({ open: false, form: emptyUitForm })
   const emptyBw = { naam: '', beschrijving: '', prijs: 0, compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, standaard_geselecteerd: false, volgorde: 0 }
   const [bwModal, setBwModal] = useState<{ open: boolean; item: Bewerking | null; form: typeof emptyBw }>({ open: false, item: null, form: emptyBw })
 
@@ -775,6 +788,7 @@ export default function AdminPage() {
     { id: 'galerij_fineer', label: 'Galerij Fineer' },
     { id: 'galerij_hpl', label: 'Galerij HPL' },
     { id: 'bewerkingen', label: 'Bewerkingen' },
+    { id: 'uitsluitingen', label: 'Uitsluitingen' },
   ]
 
   async function approveAanmelding(id: string) {
@@ -878,6 +892,68 @@ export default function AdminPage() {
       await supabase.from('bewerkingen').update({ beschikbaar: next }).eq('id', id)
       setBewerkingen(b => b.map(x => x.id === id ? { ...x, beschikbaar: next } : x))
     } catch { toast.error('Opslaan mislukt') }
+  }
+
+  function resolveNaam(type: string, id: string): string {
+    if (type === 'basisplaat') return baseplaten.find(x => x.id === id)?.naam ?? id
+    if (type === 'fineer') return fineers.find(x => x.id === id)?.naam ?? id
+    if (type === 'hpl') return hplList.find(x => x.id === id)?.kleur ?? id
+    if (type === 'bewerking') return bewerkingen.find(x => x.id === id)?.naam ?? id
+    return id
+  }
+
+  async function loadUitsluitingen() {
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data } = await supabase.from('uitsluitingen').select('*')
+      if (data) setUitsluitingen(data as UitsluitingRow[])
+    } catch { /* keep current */ }
+  }
+
+  async function saveUitsluiting() {
+    const { form } = uitModal
+    if (!form.subject_id || !form.uitgesloten_id) { toast.error('Selecteer beide items'); return }
+    if (form.subject_id === form.uitgesloten_id && form.subject_type === form.uitgesloten_type) {
+      toast.error('Subject en uitgeslotene mogen niet hetzelfde zijn'); return
+    }
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('uitsluitingen').insert({
+        subject_type: form.subject_type,
+        subject_id: form.subject_id,
+        uitgesloten_type: form.uitgesloten_type,
+        uitgesloten_id: form.uitgesloten_id,
+        reden: form.reden || null,
+      })
+      if (error) { toast.error('Opslaan mislukt: ' + error.message, { id: toastId }); return }
+      toast.success('Uitsluiting toegevoegd', { id: toastId })
+      setUitModal({ open: false, form: emptyUitForm })
+      await loadUitsluitingen()
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
+  async function deleteUitsluiting(id: string) {
+    if (!window.confirm('Uitsluiting verwijderen?')) return
+    const toastId = toast.loading('Verwijderen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('uitsluitingen').delete().eq('id', id)
+      if (error) { toast.error('Verwijderen mislukt: ' + error.message, { id: toastId }); return }
+      toast.success('Verwijderd', { id: toastId })
+      await loadUitsluitingen()
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
+  function getItemsForType(type: string): { id: string; label: string }[] {
+    if (type === 'basisplaat') return baseplaten.map(x => ({ id: x.id, label: x.naam }))
+    if (type === 'fineer') return fineers.map(x => ({ id: x.id, label: x.naam }))
+    if (type === 'hpl') return hplList.map(x => ({ id: x.id, label: x.kleur }))
+    if (type === 'bewerking') return bewerkingen.map(x => ({ id: x.id, label: x.naam }))
+    return []
   }
 
   function exportCsv(data: Record<string, unknown>[], filename: string) {
@@ -1895,6 +1971,89 @@ export default function AdminPage() {
               </table>
             </div>
 
+            {/* Uitsluiting modal (placed here to avoid nesting issues) */}
+            {uitModal.open && (
+              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setUitModal(m => ({ ...m, open: false }))}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-base font-semibold text-gray-800">Uitsluiting toevoegen</h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Subject type</label>
+                      <select
+                        value={uitModal.form.subject_type}
+                        onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, subject_type: e.target.value, subject_id: '' } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="basisplaat">Basisplaat</option>
+                        <option value="fineer">Fineer</option>
+                        <option value="hpl">HPL</option>
+                        <option value="bewerking">Bewerking</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Subject item</label>
+                      <select
+                        value={uitModal.form.subject_id}
+                        onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, subject_id: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="">— Kies item —</option>
+                        {getItemsForType(uitModal.form.subject_type).map(x => (
+                          <option key={x.id} value={x.id}>{x.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Uitgesloten type</label>
+                      <select
+                        value={uitModal.form.uitgesloten_type}
+                        onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, uitgesloten_type: e.target.value, uitgesloten_id: '' } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="basisplaat">Basisplaat</option>
+                        <option value="fineer">Fineer</option>
+                        <option value="hpl">HPL</option>
+                        <option value="bewerking">Bewerking</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Uitgesloten item</label>
+                      <select
+                        value={uitModal.form.uitgesloten_id}
+                        onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, uitgesloten_id: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      >
+                        <option value="">— Kies item —</option>
+                        {getItemsForType(uitModal.form.uitgesloten_type).map(x => (
+                          <option key={x.id} value={x.id}>{x.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Reden (optioneel)</label>
+                    <input
+                      type="text"
+                      value={uitModal.form.reden}
+                      onChange={e => setUitModal(m => ({ ...m, form: { ...m.form, reden: e.target.value } }))}
+                      placeholder="Bijv. technisch niet compatibel"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button onClick={() => setUitModal(m => ({ ...m, open: false }))} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Annuleren</button>
+                    <button onClick={saveUitsluiting} className="px-5 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Opslaan</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Bewerking modal */}
             {bwModal.open && (
               <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setBwModal(m => ({ ...m, open: false }))}>
@@ -1955,6 +2114,66 @@ export default function AdminPage() {
                     <button onClick={saveBw} className="px-5 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Opslaan</button>
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── UITSLUITINGEN ─── */}
+        {activeTab === 'uitsluitingen' && (
+          <div className="p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">Uitsluitingen / Incompatibiliteiten</h2>
+              <button
+                onClick={() => setUitModal({ open: true, form: emptyUitForm })}
+                className="text-sm px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
+              >
+                + Toevoegen
+              </button>
+            </div>
+
+            {uitsluitingen.length === 0 ? (
+              <div className="text-center py-10 text-gray-400">
+                <p className="text-3xl mb-2">🔗</p>
+                <p className="text-sm">Geen uitsluitingen ingesteld.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 px-3 font-semibold text-gray-500">Subject</th>
+                      <th className="py-2 px-2"></th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-500">Uitgesloten</th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-500">Reden</th>
+                      <th className="py-2 px-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uitsluitingen.map(u => (
+                      <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-3">
+                          <span className="text-xs text-gray-400 capitalize">{u.subject_type}:</span>{' '}
+                          <span className="font-medium text-gray-800">{resolveNaam(u.subject_type, u.subject_id)}</span>
+                        </td>
+                        <td className="py-3 px-2 text-gray-400">→</td>
+                        <td className="py-3 px-3">
+                          <span className="text-xs text-gray-400 capitalize">{u.uitgesloten_type}:</span>{' '}
+                          <span className="font-medium text-gray-800">{resolveNaam(u.uitgesloten_type, u.uitgesloten_id)}</span>
+                        </td>
+                        <td className="py-3 px-3 text-gray-500 text-xs">{u.reden ?? '—'}</td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => deleteUitsluiting(u.id)}
+                            className="text-xs px-2.5 py-1 text-red-500 hover:bg-red-50 rounded-lg font-medium"
+                          >
+                            Verwijderen
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

@@ -18,6 +18,16 @@ import {
 import { calculatePrice } from '@/lib/pricing'
 import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst } from '@/lib/types'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
+
+function isUitgesloten(list: UitsluitingRow[], tA: string, idA: string, tB: string, idB: string) {
+  return list.some(u =>
+    (u.subject_type === tA && u.subject_id === idA && u.uitgesloten_type === tB && u.uitgesloten_id === idB) ||
+    (u.subject_type === tB && u.subject_id === idB && u.uitgesloten_type === tA && u.uitgesloten_id === idA)
+  )
+}
+
 // ─── Wood color map ──────────────────────────────────────────────────────────
 const WOOD_COLORS: Record<string, string> = {
   'Okoumé': '#C4855A',
@@ -72,6 +82,7 @@ export default function ConfiguratorPage() {
   const [fineers, setFineers] = useState<Fineer[]>(seedFineers)
   const [hplList, setHplList] = useState<HPL[]>(seedHPL)
   const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
+  const [uitsluitingen, setUitsluitingen] = useState<UitsluitingRow[]>([])
   const [staffelFH, setStaffelFH] = useState(seedStaffelFineerHPL)
   const [staffelKaal, setStaffelKaal] = useState(seedStaffelKaal)
   const [verzendDrempel, setVerzendDrempel] = useState(1750)
