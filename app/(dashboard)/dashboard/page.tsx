@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import {
@@ -11,6 +12,27 @@ import {
 } from '@/lib/seed-data'
 import type { Orderlijst, Order } from '@/lib/types'
 import toast from 'react-hot-toast'
+
+type OrderlijstRegel = {
+  id: string
+  basisplaat_id: string
+  categorie: string
+  fineer_voor: string | null
+  fineer_tegen: string | null
+  hpl_voor: string | null
+  hpl_tegen: string | null
+  voegmethode: string | null
+  bewerkingen: string[]
+  ruimte_indeling: string
+  aantal: number
+  prijs_per_stuk: number
+  totaal_prijs: number
+  baseplaten?: { naam: string; dikte_mm: number }
+  fineers_voor?: { naam: string } | null
+  fineers_tegen?: { naam: string } | null
+  hpl_voor_data?: { kleur: string } | null
+  hpl_tegen_data?: { kleur: string } | null
+}
 
 type Tab = 'shop' | 'orders' | 'orderlijst'
 type OrderStatus = 'alle' | 'bevestigd' | 'in_productie' | 'verzonden' | 'geleverd'
@@ -196,13 +218,17 @@ function NewOrderlijstModal({ open, onClose, onCreate }: { open: boolean; onClos
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('shop')
   const [orderFilter, setOrderFilter] = useState<OrderStatus>('alle')
   const [orderlijsten, setOrderlijsten] = useState<Orderlijst[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedLists, setSelectedLists] = useState<string[]>([])
-  const [sendModal, setSendModal] = useState<{ open: boolean; naam: string }>({ open: false, naam: '' })
+  const [sendModal, setSendModal] = useState<{ open: boolean; naam: string; id?: string }>({ open: false, naam: '' })
   const [newListModal, setNewListModal] = useState(false)
+  const [viewModal, setViewModal] = useState<{ open: boolean; lijst: Orderlijst | null; regels: OrderlijstRegel[]; loading: boolean }>({
+    open: false, lijst: null, regels: [], loading: false,
+  })
 
   const getSupabase = useCallback(async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -277,6 +303,25 @@ export default function DashboardPage() {
     if (error) { toast.error('Aanmaken mislukt: ' + error.message); return }
     if (data) setOrderlijsten(lists => [data, ...lists])
     toast.success(`Orderlijst "${naam}" aangemaakt`)
+  }
+
+  async function openBekijk(lijst: Orderlijst) {
+    setViewModal({ open: true, lijst, regels: [], loading: true })
+    const supabase = await getSupabase()
+    if (!supabase) { setViewModal(v => ({ ...v, loading: false })); return }
+    const { data } = await supabase
+      .from('orderlijst_regels')
+      .select(`
+        *,
+        baseplaten ( naam, dikte_mm ),
+        fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam ),
+        fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam ),
+        hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur ),
+        hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur )
+      `)
+      .eq('orderlijst_id', lijst.id)
+      .order('id')
+    setViewModal(v => ({ ...v, regels: data ?? [], loading: false }))
   }
 
   function toggleSelectList(id: string) {
@@ -530,14 +575,14 @@ export default function DashboardPage() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <Link
-                            href="/configurator"
+                          <button
+                            onClick={() => openBekijk(lijst)}
                             className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                           >
                             Bekijk
-                          </Link>
+                          </button>
                           <button
-                            onClick={() => setSendModal({ open: true, naam: lijst.naam })}
+                            onClick={() => setSendModal({ open: true, naam: lijst.naam, id: lijst.id })}
                             className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
                           >
                             Verstuur
@@ -596,6 +641,114 @@ export default function DashboardPage() {
         onClose={() => setNewListModal(false)}
         onCreate={createNewList}
       />
+
+      {/* Bekijk modal */}
+      {viewModal.open && viewModal.lijst && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">{viewModal.lijst.naam}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Orderlijst overzicht</p>
+              </div>
+              <button
+                onClick={() => setViewModal({ open: false, lijst: null, regels: [], loading: false })}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              >✕</button>
+            </div>
+
+            {/* Regels */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              {viewModal.loading ? (
+                <p className="text-sm text-gray-400 text-center py-8">Laden…</p>
+              ) : viewModal.regels.length === 0 ? (
+                <div className="text-center py-10">
+                  <p className="text-3xl mb-2">📋</p>
+                  <p className="text-sm text-gray-400 mb-4">Nog geen platen in deze orderlijst.</p>
+                  <button
+                    onClick={() => { setViewModal(v => ({ ...v, open: false })); router.push('/configurator') }}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+                  >
+                    + Voeg platen toe
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {viewModal.regels.map((regel, i) => {
+                    const plaatNaam = (regel.baseplaten as { naam: string; dikte_mm: number } | null)?.naam ?? '—'
+                    const plaatDikte = (regel.baseplaten as { naam: string; dikte_mm: number } | null)?.dikte_mm ?? '—'
+                    const afwerkingLabel = regel.categorie === 'fineer'
+                      ? `Fineer: ${(regel.fineers_voor as { naam: string } | null)?.naam ?? '—'} / ${(regel.fineers_tegen as { naam: string } | null)?.naam ?? '—'}`
+                      : regel.categorie === 'hpl'
+                      ? `HPL: ${(regel.hpl_voor_data as { kleur: string } | null)?.kleur ?? '—'} / ${(regel.hpl_tegen_data as { kleur: string } | null)?.kleur ?? '—'}`
+                      : 'Kaal'
+                    return (
+                      <div key={regel.id} className="bg-gray-50 rounded-xl border border-gray-200 p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-sm text-gray-800">#{i + 1} — {plaatNaam} {plaatDikte}mm</span>
+                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium
+                                ${regel.categorie === 'fineer' ? 'bg-amber-100 text-amber-700'
+                                  : regel.categorie === 'hpl' ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-gray-200 text-gray-600'}`}>
+                                {regel.categorie}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500">{afwerkingLabel}</p>
+                            {regel.voegmethode && (
+                              <p className="text-xs text-gray-400 mt-0.5">Voeg: {regel.voegmethode}</p>
+                            )}
+                            {regel.bewerkingen?.length > 0 && (
+                              <p className="text-xs text-gray-400 mt-0.5">Bewerkingen: {regel.bewerkingen.join(', ')}</p>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-semibold text-gray-800">{regel.aantal}×</p>
+                            <p className="text-xs text-gray-400">€ {regel.totaal_prijs?.toFixed(2) ?? '—'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            {viewModal.regels.length > 0 && (
+              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500">{viewModal.regels.length} regel{viewModal.regels.length !== 1 ? 's' : ''}</p>
+                    <p className="text-base font-bold text-gray-800">
+                      Totaal: € {viewModal.regels.reduce((s, r) => s + (r.totaal_prijs ?? 0), 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setViewModal(v => ({ ...v, open: false })); router.push('/configurator') }}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      + Voeg platen toe
+                    </button>
+                    <button
+                      onClick={() => {
+                        setViewModal(v => ({ ...v, open: false }))
+                        setSendModal({ open: true, naam: viewModal.lijst!.naam, id: viewModal.lijst!.id })
+                      }}
+                      className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg"
+                    >
+                      📤 Verstuur
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
