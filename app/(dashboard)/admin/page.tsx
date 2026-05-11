@@ -136,7 +136,7 @@ export default function AdminPage() {
             fineerkeuze_tekst, orderlijst_ids,
             profiles ( naam, bedrijf )
           `)
-          .eq('status', 'definitief')
+          .eq('status', 'nieuw')
           .order('verstuurd_op', { ascending: false })
 
         if (aanvraagData) {

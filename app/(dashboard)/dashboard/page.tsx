@@ -117,7 +117,7 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
           type: 'enkel',
           bericht: bericht || null,
           totaal_waarde: totaal,
-          status: 'definitief',
+          status: 'nieuw',
         })
         if (aanvraagError) { toast.error('Versturen mislukt: ' + aanvraagError.message); setSending(false); return }
 
