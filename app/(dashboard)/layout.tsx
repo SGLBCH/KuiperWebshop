@@ -6,14 +6,22 @@ async function getSession() {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
-      return { demoMode: true, user: null }
+      return { demoMode: true, user: null, profile: null }
     }
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    return { demoMode: false, user }
+    if (!user) return { demoMode: false, user: null, profile: null }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('status, rol, naam')
+      .eq('id', user.id)
+      .single()
+
+    return { demoMode: false, user, profile }
   } catch {
-    return { demoMode: true, user: null }
+    return { demoMode: true, user: null, profile: null }
   }
 }
 
@@ -22,10 +30,15 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { demoMode, user } = await getSession()
+  const { demoMode, user, profile } = await getSession()
 
   if (!demoMode && !user) {
     redirect('/login')
+  }
+
+  // Block access if not approved yet
+  if (!demoMode && user && profile?.status !== 'goedgekeurd') {
+    redirect('/pending')
   }
 
   return (

@@ -61,6 +61,31 @@ export default function LoginPage() {
       }
 
       if (data.session) {
+        // Check profile status before granting access
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('status, rol')
+          .eq('id', data.user.id)
+          .single()
+
+        if (!profile || profile.status === 'pending') {
+          await supabase.auth.signOut()
+          router.push('/pending')
+          return
+        }
+
+        if (profile.status === 'afgewezen') {
+          await supabase.auth.signOut()
+          toast.error('Uw aanvraag is helaas afgewezen. Neem contact op met Kuiper Holland.')
+          return
+        }
+
+        if (profile.status === 'gedeactiveerd') {
+          await supabase.auth.signOut()
+          toast.error('Uw account is gedeactiveerd. Neem contact op met Kuiper Holland.')
+          return
+        }
+
         router.push('/dashboard')
       }
     } catch {
