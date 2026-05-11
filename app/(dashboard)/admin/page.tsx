@@ -201,6 +201,9 @@ export default function AdminPage() {
         const { data: hplData } = await supabase.from('hpl').select('*').order('volgorde', { ascending: true })
         if (hplData && hplData.length > 0) setHplList(hplData as HPL[])
 
+        const { data: bwData } = await supabase.from('bewerkingen').select('*').order('volgorde', { ascending: true })
+        if (bwData && bwData.length > 0) setBewerkingen(bwData as Bewerking[])
+
       } catch (err) {
         console.error('Failed to load admin data:', err)
         // Keep demo data on error
@@ -756,7 +759,8 @@ export default function AdminPage() {
 
   // Bewerkingen state
   const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
-  const [newBewerking, setNewBewerking] = useState({ naam: '', beschrijving: '', prijs: '' })
+  const emptyBw = { naam: '', beschrijving: '', prijs: 0, compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, volgorde: 0 }
+  const [bwModal, setBwModal] = useState<{ open: boolean; item: Bewerking | null; form: typeof emptyBw }>({ open: false, item: null, form: emptyBw })
 
   // Aanvragen sub-tab
   const [aanvraagSubTab, setAanvraagSubTab] = useState<'definitief' | 'concepten'>('definitief')
@@ -822,27 +826,58 @@ export default function AdminPage() {
     else setStaffelKaal(s => s.filter(r => r.id !== id))
   }
 
-  function addBewerking() {
-    if (!newBewerking.naam || !newBewerking.prijs) {
-      toast.error('Vul minimaal naam en prijs in')
-      return
-    }
-    const bew: Bewerking = {
-      id: `bw-${Date.now()}`,
-      naam: newBewerking.naam,
-      beschrijving: newBewerking.beschrijving,
-      prijs: parseFloat(newBewerking.prijs),
-      compatibiliteit: ['kaal', 'fineer', 'hpl'],
-      beschikbaar: true,
-      volgorde: bewerkingen.length + 1,
-    }
-    setBewerkingen(b => [...b, bew])
-    setNewBewerking({ naam: '', beschrijving: '', prijs: '' })
-    toast.success('Bewerking toegevoegd')
+  function openBwAdd() {
+    setBwModal({ open: true, item: null, form: { ...emptyBw, volgorde: bewerkingen.length + 1 } })
   }
 
-  function toggleBewerking(id: string) {
-    setBewerkingen(b => b.map(x => x.id === id ? { ...x, beschikbaar: !x.beschikbaar } : x))
+  function openBwEdit(b: Bewerking) {
+    setBwModal({ open: true, item: b, form: { naam: b.naam, beschrijving: b.beschrijving, prijs: b.prijs, compatibiliteit: [...b.compatibiliteit], beschikbaar: b.beschikbaar, volgorde: b.volgorde } })
+  }
+
+  async function saveBw() {
+    const { form, item } = bwModal
+    if (!form.naam) { toast.error('Naam is verplicht'); return }
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      if (item) {
+        const { error } = await supabase.from('bewerkingen').update({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, volgorde: form.volgorde }).eq('id', item.id)
+        if (error) { toast.error('Opslaan mislukt: ' + error.message, { id: toastId }); return }
+        setBewerkingen(b => b.map(x => x.id === item.id ? { ...x, ...form } as Bewerking : x))
+      } else {
+        const { data, error } = await supabase.from('bewerkingen').insert({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, volgorde: form.volgorde }).select().single()
+        if (error) { toast.error('Toevoegen mislukt: ' + error.message, { id: toastId }); return }
+        setBewerkingen(b => [...b, data as Bewerking])
+      }
+      toast.success(item ? 'Bewerking bijgewerkt' : 'Bewerking toegevoegd', { id: toastId })
+      setBwModal({ open: false, item: null, form: emptyBw })
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
+  async function deleteBw(b: Bewerking) {
+    if (!window.confirm(`Bewerking "${b.naam}" definitief verwijderen?`)) return
+    const toastId = toast.loading('Verwijderen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('bewerkingen').delete().eq('id', b.id)
+      if (error) { toast.error('Verwijderen mislukt: ' + error.message, { id: toastId }); return }
+      setBewerkingen(bw => bw.filter(x => x.id !== b.id))
+      toast.success('Verwijderd', { id: toastId })
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
+  async function toggleBewerking(id: string) {
+    const bw = bewerkingen.find(x => x.id === id)
+    if (!bw) return
+    const next = !bw.beschikbaar
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      await supabase.from('bewerkingen').update({ beschikbaar: next }).eq('id', id)
+      setBewerkingen(b => b.map(x => x.id === id ? { ...x, beschikbaar: next } : x))
+    } catch { toast.error('Opslaan mislukt') }
   }
 
   function exportCsv(data: Record<string, unknown>[], filename: string) {
@@ -1799,7 +1834,15 @@ export default function AdminPage() {
         {/* ─── BEWERKINGEN ─── */}
         {activeTab === 'bewerkingen' && (
           <div className="p-6 space-y-6">
-            <h2 className="text-lg font-semibold text-gray-800">Bewerkingen beheren</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800">Bewerkingen beheren</h2>
+              <button
+                onClick={openBwAdd}
+                className="text-sm px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700"
+              >
+                + Nieuw toevoegen
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -1808,14 +1851,15 @@ export default function AdminPage() {
                     <th className="text-left py-2 px-3 font-semibold text-gray-500">Beschrijving</th>
                     <th className="text-right py-2 px-3 font-semibold text-gray-500">€/m²</th>
                     <th className="text-left py-2 px-3 font-semibold text-gray-500">Compatibiliteit</th>
-                    <th className="text-center py-2 px-3 font-semibold text-gray-500">Beschikbaar</th>
+                    <th className="text-center py-2 px-3 font-semibold text-gray-500">Status</th>
+                    <th className="py-2 px-3"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {bewerkingen.map(b => (
                     <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-3 px-3 font-medium">{b.naam}</td>
-                      <td className="py-3 px-3 text-gray-500 text-xs max-w-48">{b.beschrijving}</td>
+                      <td className="py-3 px-3 text-gray-500 text-xs max-w-48">{b.beschrijving || '—'}</td>
                       <td className="py-3 px-3 text-right">€ {b.prijs.toFixed(2)}</td>
                       <td className="py-3 px-3">
                         <div className="flex gap-1 flex-wrap">
@@ -1836,48 +1880,75 @@ export default function AdminPage() {
                           {b.beschikbaar ? '✓ Actief' : '✗ Inactief'}
                         </button>
                       </td>
+                      <td className="py-3 px-3 text-right">
+                        <div className="flex gap-1 justify-end">
+                          <button onClick={() => openBwEdit(b)} className="text-xs px-2.5 py-1 text-blue-600 hover:bg-blue-50 rounded-lg font-medium">Bewerken</button>
+                          <button onClick={() => deleteBw(b)} className="text-xs px-2.5 py-1 text-red-500 hover:bg-red-50 rounded-lg font-medium">Verwijderen</button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            {/* Add bewerking form */}
-            <div className="border-t border-gray-100 pt-5">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Nieuwe bewerking toevoegen</h3>
-              <div className="grid sm:grid-cols-3 gap-3">
-                <input
-                  type="text"
-                  value={newBewerking.naam}
-                  onChange={e => setNewBewerking(n => ({ ...n, naam: e.target.value }))}
-                  placeholder="Naam *"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="text"
-                  value={newBewerking.beschrijving}
-                  onChange={e => setNewBewerking(n => ({ ...n, beschrijving: e.target.value }))}
-                  placeholder="Beschrijving"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={newBewerking.prijs}
-                    onChange={e => setNewBewerking(n => ({ ...n, prijs: e.target.value }))}
-                    placeholder="€/m² *"
-                    step="0.01"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={addBewerking}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700"
-                  >
-                    + Voeg toe
-                  </button>
+            {/* Bewerking modal */}
+            {bwModal.open && (
+              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setBwModal(m => ({ ...m, open: false }))}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-base font-semibold text-gray-800">{bwModal.item ? 'Bewerking bewerken' : 'Bewerking toevoegen'}</h3>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Naam *</label>
+                    <input type="text" value={bwModal.form.naam} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, naam: e.target.value } }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Beschrijving</label>
+                    <input type="text" value={bwModal.form.beschrijving} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, beschrijving: e.target.value } }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Prijs (€/m²)</label>
+                      <input type="number" step="0.01" value={bwModal.form.prijs} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, prijs: parseFloat(e.target.value) || 0 } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Volgorde</label>
+                      <input type="number" value={bwModal.form.volgorde} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, volgorde: parseInt(e.target.value) || 0 } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-2">Compatibiliteit</label>
+                    <div className="flex gap-4">
+                      {(['kaal', 'fineer', 'hpl'] as const).map(c => (
+                        <label key={c} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                          <input type="checkbox" checked={bwModal.form.compatibiliteit.includes(c)}
+                            onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, compatibiliteit: e.target.checked ? [...m.form.compatibiliteit, c] : m.form.compatibiliteit.filter(x => x !== c) } }))}
+                            className="w-4 h-4 rounded" />
+                          {c}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" id="bw-beschikbaar" checked={bwModal.form.beschikbaar} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, beschikbaar: e.target.checked } }))} className="w-4 h-4" />
+                    <label htmlFor="bw-beschikbaar" className="text-sm text-gray-700">Beschikbaar in configurator</label>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button onClick={() => setBwModal(m => ({ ...m, open: false }))} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Annuleren</button>
+                    <button onClick={saveBw} className="px-5 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Opslaan</button>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         )}
       </div>
