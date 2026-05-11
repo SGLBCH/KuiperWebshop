@@ -114,7 +114,7 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
         const { error: aanvraagError } = await supabase.from('aanvragen').insert({
           user_id: user.id,
           orderlijst_ids: [orderlijstId],
-          type: 'enkel',
+          type: 'offerte',
           bericht: bericht || null,
           totaal_waarde: totaal,
           status: 'nieuw',
