@@ -956,18 +956,106 @@ export default function AdminPage() {
     return []
   }
 
-  function exportCsv(data: Record<string, unknown>[], filename: string) {
-    if (!data.length) return
-    const keys = Object.keys(data[0])
-    const csv = [keys.join(','), ...data.map(row => keys.map(k => JSON.stringify(row[k] ?? '')).join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
+  function exportPrijzenCsv(type: 'baseplaten' | 'fineers' | 'hpl') {
+    let rows: Record<string, unknown>[]
+    let filename: string
+    if (type === 'baseplaten') {
+      rows = baseplaten.map(p => ({ id: p.id, naam: p.naam, dikte_mm: p.dikte_mm, breedte_mm: p.breedte_mm, lengte_mm: p.lengte_mm, prijs_per_m2: p.prijs_per_m2, beschikbaar: p.beschikbaar }))
+      filename = 'baseplaten_prijzen.csv'
+    } else if (type === 'fineers') {
+      rows = fineers.map(f => ({ id: f.id, naam: f.naam, prijs_voorzijde_lang: f.prijs_voorzijde_lang, prijs_voorzijde_kort: f.prijs_voorzijde_kort, prijs_tegenzijde_lang: f.prijs_tegenzijde_lang, prijs_tegenzijde_kort: f.prijs_tegenzijde_kort }))
+      filename = 'fineers_prijzen.csv'
+    } else {
+      rows = hplList.map(h => ({ id: h.id, kleur: h.kleur, prijs_lang: h.prijs_lang, prijs_kort: h.prijs_kort, hpl_afm_lang_b: h.hpl_afm_lang_b, hpl_afm_lang_l: h.hpl_afm_lang_l, hpl_afm_kort_b: h.hpl_afm_kort_b, hpl_afm_kort_l: h.hpl_afm_kort_l }))
+      filename = 'hpl_prijzen.csv'
+    }
+    if (!rows.length) { toast.error('Geen data om te exporteren'); return }
+    const keys = Object.keys(rows[0])
+    const csv = [keys.join(','), ...rows.map(row => keys.map(k => JSON.stringify(row[k] ?? '')).join(','))].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
+    a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
     toast.success(`${filename} geëxporteerd`)
+  }
+
+  function importPrijzenCsv(type: 'baseplaten' | 'fineers' | 'hpl', content: string) {
+    const lines = content.trim().split('\n').filter(l => l.trim())
+    if (lines.length < 2) { toast.error('CSV bevat geen data'); return }
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
+    if (!headers.includes('id')) { toast.error('CSV mist kolom "id"'); return }
+
+    const parsedRows = lines.slice(1).map(line => {
+      const vals = line.match(/("(?:[^"]|"")*"|[^,]*)/g) ?? []
+      const obj: Record<string, string> = {}
+      headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').replace(/^"|"$/g, '').replace(/""/g, '"').trim() })
+      return obj
+    })
+
+    async function applyImport() {
+      const toastId = toast.loading('Importeren…')
+      try {
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+        let updated = 0; let skipped = 0
+
+        if (type === 'baseplaten') {
+          const priceFields = ['prijs_per_m2', 'beschikbaar']
+          for (const row of parsedRows) {
+            if (!row.id) { skipped++; continue }
+            const patch: Record<string, unknown> = {}
+            if (row.prijs_per_m2 !== undefined) patch.prijs_per_m2 = parseFloat(row.prijs_per_m2) || 0
+            if (row.beschikbaar !== undefined) patch.beschikbaar = row.beschikbaar === 'true' || row.beschikbaar === '1'
+            if (Object.keys(patch).length === 0 || !priceFields.some(f => row[f] !== undefined)) { skipped++; continue }
+            const { error } = await supabase.from('baseplaten').update(patch).eq('id', row.id)
+            if (error) { skipped++ } else { updated++; setBaseplaten(b => b.map(x => x.id === row.id ? { ...x, ...patch } : x)) }
+          }
+        } else if (type === 'fineers') {
+          for (const row of parsedRows) {
+            if (!row.id) { skipped++; continue }
+            const patch: Record<string, unknown> = {}
+            if (row.prijs_voorzijde_lang !== undefined) patch.prijs_voorzijde_lang = parseFloat(row.prijs_voorzijde_lang) || 0
+            if (row.prijs_voorzijde_kort !== undefined) patch.prijs_voorzijde_kort = parseFloat(row.prijs_voorzijde_kort) || 0
+            if (row.prijs_tegenzijde_lang !== undefined) patch.prijs_tegenzijde_lang = parseFloat(row.prijs_tegenzijde_lang) || 0
+            if (row.prijs_tegenzijde_kort !== undefined) patch.prijs_tegenzijde_kort = parseFloat(row.prijs_tegenzijde_kort) || 0
+            if (Object.keys(patch).length === 0) { skipped++; continue }
+            const { error } = await supabase.from('fineers').update(patch).eq('id', row.id)
+            if (error) { skipped++ } else { updated++; setFineers(f => f.map(x => x.id === row.id ? { ...x, ...patch } as Fineer : x)) }
+          }
+        } else {
+          for (const row of parsedRows) {
+            if (!row.id) { skipped++; continue }
+            const patch: Record<string, unknown> = {}
+            if (row.prijs_lang !== undefined) patch.prijs_lang = parseFloat(row.prijs_lang) || 0
+            if (row.prijs_kort !== undefined) patch.prijs_kort = parseFloat(row.prijs_kort) || 0
+            if (row.hpl_afm_lang_b !== undefined) patch.hpl_afm_lang_b = parseFloat(row.hpl_afm_lang_b) || 0
+            if (row.hpl_afm_lang_l !== undefined) patch.hpl_afm_lang_l = parseFloat(row.hpl_afm_lang_l) || 0
+            if (row.hpl_afm_kort_b !== undefined) patch.hpl_afm_kort_b = parseFloat(row.hpl_afm_kort_b) || 0
+            if (row.hpl_afm_kort_l !== undefined) patch.hpl_afm_kort_l = parseFloat(row.hpl_afm_kort_l) || 0
+            if (Object.keys(patch).length === 0) { skipped++; continue }
+            const { error } = await supabase.from('hpl').update(patch).eq('id', row.id)
+            if (error) { skipped++ } else { updated++; setHplList(h => h.map(x => x.id === row.id ? { ...x, ...patch } as HPL : x)) }
+          }
+        }
+        toast.success(`Import klaar: ${updated} bijgewerkt${skipped ? `, ${skipped} overgeslagen` : ''}`, { id: toastId })
+      } catch (e) { toast.error('Import mislukt', { id: toastId }); console.error(e) }
+    }
+    applyImport()
+  }
+
+  function triggerImport(type: 'baseplaten' | 'fineers' | 'hpl') {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv,text/csv'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = e => importPrijzenCsv(type, e.target?.result as string)
+      reader.readAsText(file, 'utf-8')
+    }
+    input.click()
   }
 
   if (loadingData) {
@@ -1257,10 +1345,16 @@ export default function AdminPage() {
                     + Nieuw toevoegen
                   </button>
                   <button
-                    onClick={() => exportCsv(baseplaten as unknown as Record<string, unknown>[], 'basisplaten.csv')}
+                    onClick={() => exportPrijzenCsv('baseplaten')}
                     className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
                   >
-                    CSV Exporteren
+                    ↓ Exporteren
+                  </button>
+                  <button
+                    onClick={() => triggerImport('baseplaten')}
+                    className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200"
+                  >
+                    ↑ Importeren
                   </button>
                 </div>
               </div>
@@ -1336,10 +1430,16 @@ export default function AdminPage() {
                     + Nieuw toevoegen
                   </button>
                   <button
-                    onClick={() => exportCsv(fineers as unknown as Record<string, unknown>[], 'fineers.csv')}
+                    onClick={() => exportPrijzenCsv('fineers')}
                     className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
                   >
-                    CSV Exporteren
+                    ↓ Exporteren
+                  </button>
+                  <button
+                    onClick={() => triggerImport('fineers')}
+                    className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200"
+                  >
+                    ↑ Importeren
                   </button>
                 </div>
               </div>
@@ -1447,10 +1547,16 @@ export default function AdminPage() {
                     + Nieuw toevoegen
                   </button>
                   <button
-                    onClick={() => exportCsv(hplList as unknown as Record<string, unknown>[], 'hpl.csv')}
+                    onClick={() => exportPrijzenCsv('hpl')}
                     className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
                   >
-                    CSV Exporteren
+                    ↓ Exporteren
+                  </button>
+                  <button
+                    onClick={() => triggerImport('hpl')}
+                    className="text-xs px-3 py-1.5 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 border border-green-200"
+                  >
+                    ↑ Importeren
                   </button>
                 </div>
               </div>
