@@ -11,8 +11,9 @@ import {
   seedStaffelFineerHPL,
   seedStaffelKaal,
   seedInstellingen,
+  seedVasteKosten,
 } from '@/lib/seed-data'
-import type { Baseplaat, Fineer, HPL, Bewerking, StaffelRegel } from '@/lib/types'
+import type { Baseplaat, Fineer, HPL, Bewerking, StaffelRegel, HotmeltCombinatie } from '@/lib/types'
 
 type AdminTab =
   | 'aanmeldingen'
@@ -209,6 +210,17 @@ export default function AdminPage() {
 
         const { data: uitData } = await supabase.from('uitsluitingen').select('*')
         if (uitData) setUitsluitingen(uitData as UitsluitingRow[])
+
+        const { data: insData } = await supabase.from('instellingen').select('*')
+        if (insData) {
+          const get = (key: string, def: number) => parseFloat(insData.find(i => i.sleutel === key)?.waarde ?? String(def))
+          setFineerlijm(get('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2))
+          setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
+          setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
+          setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
+        }
+        const { data: hmData } = await supabase.from('hotmelt_combinaties').select('*')
+        if (hmData) setHotmeltCombs(hmData as HotmeltCombinatie[])
 
       } catch (err) {
         console.error('Failed to load admin data:', err)
@@ -753,6 +765,50 @@ export default function AdminPage() {
     }
   }
 
+  async function saveVasteKosten() {
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const upserts = [
+        { sleutel: 'fineerlijm_per_m2', waarde: String(fineerlijm) },
+        { sleutel: 'schuurbanden_per_m2', waarde: String(schuurbanden) },
+        { sleutel: 'hpl_lijm_per_m2', waarde: String(hplLijm) },
+        { sleutel: 'pu_hotmelt_per_m2', waarde: String(puHotmelt) },
+      ]
+      const { error } = await supabase.from('instellingen').upsert(upserts, { onConflict: 'sleutel' })
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success('Vaste kosten opgeslagen', { id: toastId })
+    } catch (e) { toast.error('Opslaan mislukt', { id: toastId }); console.error(e) }
+  }
+
+  async function saveHotmeltComb(basisplaat_id: string, categorie: 'fineer' | 'hpl') {
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data, error } = await supabase.from('hotmelt_combinaties')
+        .insert({ basisplaat_id, categorie })
+        .select().single()
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      setHotmeltCombs(h => [...h, data as HotmeltCombinatie])
+      toast.success('Combinatie toegevoegd', { id: toastId })
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
+  async function deleteHotmeltComb(id: string) {
+    if (!window.confirm('Hotmelt combinatie verwijderen?')) return
+    const toastId = toast.loading('Verwijderen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('hotmelt_combinaties').delete().eq('id', id)
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      setHotmeltCombs(h => h.filter(x => x.id !== id))
+      toast.success('Verwijderd', { id: toastId })
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
   // Staffel state
   const [staffelFH, setStaffelFH] = useState<StaffelRegel[]>(seedStaffelFineerHPL)
   const [staffelKaal, setStaffelKaal] = useState<StaffelRegel[]>(seedStaffelKaal)
@@ -765,6 +821,12 @@ export default function AdminPage() {
 
   // Bewerkingen state
   const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
+  const [fineerlijm, setFineerlijm] = useState(seedVasteKosten.fineerlijm_per_m2)
+  const [schuurbanden, setSchuurbanden] = useState(seedVasteKosten.schuurbanden_per_m2)
+  const [hplLijm, setHplLijm] = useState(seedVasteKosten.hpl_lijm_per_m2)
+  const [puHotmelt, setPuHotmelt] = useState(seedVasteKosten.pu_hotmelt_per_m2)
+  const [hotmeltCombs, setHotmeltCombs] = useState<HotmeltCombinatie[]>([])
+  const [hmForm, setHmForm] = useState({ basisplaat_id: '', categorie: 'fineer' as 'fineer' | 'hpl' })
 
   // Uitsluitingen state
   const [uitsluitingen, setUitsluitingen] = useState<UitsluitingRow[]>([])
@@ -830,7 +892,7 @@ export default function AdminPage() {
   }
 
   function addStaffelRow(type: 'fh' | 'kaal') {
-    const newRow: StaffelRegel = { id: `sr-${Date.now()}`, van_aantal: 0, tot_aantal: null, multiplier: 1.0 }
+    const newRow: StaffelRegel = { id: `sr-${Date.now()}`, van_aantal: 0, tot_aantal: null, marge_coefficient: 0.65 }
     if (type === 'fh') setStaffelFH(s => [...s, newRow])
     else setStaffelKaal(s => [...s, newRow])
   }
@@ -1698,6 +1760,105 @@ export default function AdminPage() {
               </p>
             </div>
 
+            {/* Vaste inkoopkosten */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Vaste inkoopkosten (€/m²)</h3>
+              <p className="text-xs text-gray-400 mb-4">Deze kosten worden opgeteld bij de inkoopprijs voor de marge-berekening.</p>
+              <div className="grid sm:grid-cols-2 gap-4 max-w-lg">
+                {[
+                  { label: 'Fineerlijm', val: fineerlijm, set: setFineerlijm, key: 'fineer' },
+                  { label: 'Schuurbanden', val: schuurbanden, set: setSchuurbanden, key: 'schuur' },
+                  { label: 'HPL lijm', val: hplLijm, set: setHplLijm, key: 'hpllm' },
+                  { label: 'PU hotmelt lijm', val: puHotmelt, set: setPuHotmelt, key: 'pu' },
+                ].map(({ label, val, set, key }) => (
+                  <div key={key}>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">{label} (€/m²)</label>
+                    <input
+                      type="number"
+                      value={val}
+                      step="0.01"
+                      min="0"
+                      onChange={e => set(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={saveVasteKosten}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700"
+              >
+                Vaste kosten opslaan
+              </button>
+            </div>
+
+            {/* PU Hotmelt combinaties */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">PU Hotmelt combinaties</h3>
+              <p className="text-xs text-gray-400 mb-3">Basisplaat + categorie die PU hotmelt lijm gebruiken (i.p.v. fineerlijm / HPL lijm)</p>
+              <div className="flex gap-2 mb-4 flex-wrap">
+                <select
+                  value={hmForm.basisplaat_id}
+                  onChange={e => setHmForm(f => ({ ...f, basisplaat_id: e.target.value }))}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none"
+                >
+                  <option value="">— Kies basisplaat —</option>
+                  {baseplaten.map(b => <option key={b.id} value={b.id}>{b.naam} {b.dikte_mm}mm</option>)}
+                </select>
+                <select
+                  value={hmForm.categorie}
+                  onChange={e => setHmForm(f => ({ ...f, categorie: e.target.value as 'fineer' | 'hpl' }))}
+                  className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none"
+                >
+                  <option value="fineer">Fineer</option>
+                  <option value="hpl">HPL</option>
+                </select>
+                <button
+                  onClick={() => {
+                    if (!hmForm.basisplaat_id) { toast.error('Kies een basisplaat'); return }
+                    saveHotmeltComb(hmForm.basisplaat_id, hmForm.categorie)
+                    setHmForm({ basisplaat_id: '', categorie: 'fineer' })
+                  }}
+                  className="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+                >
+                  + Toevoegen
+                </button>
+              </div>
+              {hotmeltCombs.length === 0 ? (
+                <p className="text-sm text-gray-400">Geen hotmelt combinaties gedefinieerd.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Basisplaat</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Categorie</th>
+                      <th className="py-2 px-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hotmeltCombs.map(hc => (
+                      <tr key={hc.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-2 px-2">{baseplaten.find(x => x.id === hc.basisplaat_id)?.naam ?? hc.basisplaat_id}</td>
+                        <td className="py-2 px-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${hc.categorie === 'hpl' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                            {hc.categorie}
+                          </span>
+                        </td>
+                        <td className="py-2 px-2">
+                          <button
+                            onClick={() => deleteHotmeltComb(hc.id)}
+                            className="px-2 py-0.5 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100"
+                          >
+                            Verwijderen
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
             <button
               onClick={() => toast.success('Staffel opgeslagen')}
               className="px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700"
@@ -2371,8 +2532,8 @@ function StaffelTable({
         <tr className="border-b border-gray-200">
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Van aantal</th>
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Tot aantal</th>
-          <th className="text-left py-2 px-2 font-semibold text-gray-500">Multiplier</th>
-          <th className="text-left py-2 px-2 font-semibold text-gray-500">Korting</th>
+          <th className="text-left py-2 px-2 font-semibold text-gray-500">Marge coëff.</th>
+          <th className="text-left py-2 px-2 font-semibold text-gray-500">Bruto marge</th>
           <th></th>
         </tr>
       </thead>
@@ -2399,20 +2560,18 @@ function StaffelTable({
             <td className="py-1.5 px-2">
               <input
                 type="number"
-                value={r.multiplier}
+                value={r.marge_coefficient}
                 step="0.01"
-                min="0"
+                min="0.01"
                 max="1"
-                onChange={e => onChange(staffel.map(x => x.id === r.id ? { ...x, multiplier: parseFloat(e.target.value) || 1 } : x))}
+                onChange={e => onChange(staffel.map(x => x.id === r.id ? { ...x, marge_coefficient: parseFloat(e.target.value) || 0.65 } : x))}
                 className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none"
               />
             </td>
             <td className="py-1.5 px-2 text-sm">
-              {r.multiplier < 1 ? (
-                <Badge variant="approved">−{Math.round((1 - r.multiplier) * 100)}%</Badge>
-              ) : (
-                <span className="text-gray-400">Geen</span>
-              )}
+              <Badge variant="info">
+                {Math.round((1 - r.marge_coefficient) * 100)}%
+              </Badge>
             </td>
             <td className="py-1.5 px-2">
               <button

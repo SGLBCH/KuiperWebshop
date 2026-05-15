@@ -234,18 +234,25 @@ export const seedBewerkingen: Bewerking[] = [
 
 // ─── Staffel ───────────────────────────────────────────────────────────────────
 export const seedStaffelFineerHPL: StaffelRegel[] = [
-  { id: 'sf-1', van_aantal: 1, tot_aantal: 9, multiplier: 1.0 },
-  { id: 'sf-2', van_aantal: 10, tot_aantal: 24, multiplier: 0.95 },
-  { id: 'sf-3', van_aantal: 25, tot_aantal: 49, multiplier: 0.90 },
-  { id: 'sf-4', van_aantal: 50, tot_aantal: null, multiplier: 0.85 },
+  { id: 'sf-1', van_aantal: 1,  tot_aantal: 9,    marge_coefficient: 0.65 },
+  { id: 'sf-2', van_aantal: 10, tot_aantal: 24,   marge_coefficient: 0.70 },
+  { id: 'sf-3', van_aantal: 25, tot_aantal: 49,   marge_coefficient: 0.75 },
+  { id: 'sf-4', van_aantal: 50, tot_aantal: null,  marge_coefficient: 0.80 },
 ]
 
 export const seedStaffelKaal: StaffelRegel[] = [
-  { id: 'sk-1', van_aantal: 1, tot_aantal: 9, multiplier: 1.0 },
-  { id: 'sk-2', van_aantal: 10, tot_aantal: 24, multiplier: 0.97 },
-  { id: 'sk-3', van_aantal: 25, tot_aantal: 49, multiplier: 0.94 },
-  { id: 'sk-4', van_aantal: 50, tot_aantal: null, multiplier: 0.90 },
+  { id: 'sk-1', van_aantal: 1,  tot_aantal: 9,    marge_coefficient: 0.80 },
+  { id: 'sk-2', van_aantal: 10, tot_aantal: 24,   marge_coefficient: 0.82 },
+  { id: 'sk-3', van_aantal: 25, tot_aantal: 49,   marge_coefficient: 0.84 },
+  { id: 'sk-4', van_aantal: 50, tot_aantal: null,  marge_coefficient: 0.86 },
 ]
+
+export const seedVasteKosten = {
+  fineerlijm_per_m2: 1.50,
+  schuurbanden_per_m2: 0.80,
+  hpl_lijm_per_m2: 1.80,
+  pu_hotmelt_per_m2: 4.50,
+}
 
 // ─── Instellingen ──────────────────────────────────────────────────────────────
 export const seedInstellingen: Instelling[] = [

@@ -75,7 +75,13 @@ export interface StaffelRegel {
   id: string
   van_aantal: number
   tot_aantal: number | null       // null = onbeperkt
-  multiplier: number
+  marge_coefficient: number
+}
+
+export interface HotmeltCombinatie {
+  id: string
+  basisplaat_id: string
+  categorie: 'fineer' | 'hpl'
 }
 
 // ─── Instelling ────────────────────────────────────────────────────────────────
@@ -193,6 +199,11 @@ export interface PricingData {
   staffel: StaffelRegel[]
   verzend_drempel: number
   verzend_kosten: number
+  fineerlijm_per_m2: number
+  schuurbanden_per_m2: number
+  hpl_lijm_per_m2: number
+  pu_hotmelt_per_m2: number
+  hotmelt_combinaties: HotmeltCombinatie[]
 }
 
 export interface PriceResult {

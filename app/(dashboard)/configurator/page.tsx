@@ -14,9 +14,10 @@ import {
   seedStaffelKaal,
   seedOrderlijsten,
   seedInstellingen,
+  seedVasteKosten,
 } from '@/lib/seed-data'
 import { calculatePrice } from '@/lib/pricing'
-import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst } from '@/lib/types'
+import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst, PricingData, HotmeltCombinatie } from '@/lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
@@ -87,11 +88,21 @@ export default function ConfiguratorPage() {
   const [staffelKaal, setStaffelKaal] = useState(seedStaffelKaal)
   const [verzendDrempel, setVerzendDrempel] = useState(1750)
   const [verzendKosten, setVerzendKosten] = useState(25)
+  const [fineerlijm, setFineerlijm] = useState(seedVasteKosten.fineerlijm_per_m2)
+  const [schuurbanden, setSchuurbanden] = useState(seedVasteKosten.schuurbanden_per_m2)
+  const [hplLijm, setHplLijm] = useState(seedVasteKosten.hpl_lijm_per_m2)
+  const [puHotmelt, setPuHotmelt] = useState(seedVasteKosten.pu_hotmelt_per_m2)
+  const [hotmeltCombs, setHotmeltCombs] = useState<HotmeltCombinatie[]>([])
 
-  const pricingData = {
+  const pricingData: PricingData = {
     staffel: state.categorie === 'kaal' ? staffelKaal : staffelFH,
     verzend_drempel: verzendDrempel,
     verzend_kosten: verzendKosten,
+    fineerlijm_per_m2: fineerlijm,
+    schuurbanden_per_m2: schuurbanden,
+    hpl_lijm_per_m2: hplLijm,
+    pu_hotmelt_per_m2: puHotmelt,
+    hotmelt_combinaties: hotmeltCombs,
   }
 
   const priceResult = calculatePrice(state, pricingData)
@@ -121,7 +132,7 @@ export default function ConfiguratorPage() {
       if (lijsten) setOrderlijsten(lijsten)
 
       // Load catalog (baseplaten, fineers, hpl, bewerkingen)
-      const [bpRes, fnRes, hplRes, bwRes, stRes, insRes, uitRes] = await Promise.all([
+      const [bpRes, fnRes, hplRes, bwRes, stRes, insRes, uitRes, hmRes] = await Promise.all([
         supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
         supabase.from('fineers').select('*').order('volgorde'),
         supabase.from('hpl').select('*').order('kleur'),
@@ -129,6 +140,7 @@ export default function ConfiguratorPage() {
         supabase.from('staffelregels').select('*').order('van_aantal'),
         supabase.from('instellingen').select('*'),
         supabase.from('uitsluitingen').select('*'),
+        supabase.from('hotmelt_combinaties').select('*'),
       ])
 
       if (bpRes.data?.length) setBaseplaten(bpRes.data)
@@ -149,11 +161,16 @@ export default function ConfiguratorPage() {
         setStaffelKaal(stRes.data)
       }
       if (insRes.data?.length) {
-        const drempel = insRes.data.find(i => i.sleutel === 'verzend_drempel')
-        const kosten = insRes.data.find(i => i.sleutel === 'verzend_kosten')
-        if (drempel) setVerzendDrempel(parseFloat(drempel.waarde))
-        if (kosten) setVerzendKosten(parseFloat(kosten.waarde))
+        const get = (key: string, def: number) =>
+          parseFloat(insRes.data!.find(i => i.sleutel === key)?.waarde ?? String(def))
+        setVerzendDrempel(get('verzend_drempel', 1750))
+        setVerzendKosten(get('verzend_kosten', 25))
+        setFineerlijm(get('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2))
+        setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
+        setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
+        setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
       }
+      if (hmRes.data) setHotmeltCombs(hmRes.data as HotmeltCombinatie[])
     }
     load()
   }, [getSupabase])
