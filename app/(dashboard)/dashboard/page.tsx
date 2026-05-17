@@ -286,6 +286,7 @@ export default function DashboardPage() {
   const [orderlijsten, setOrderlijsten] = useState<Orderlijst[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [selectedLists, setSelectedLists] = useState<string[]>([])
+  const [combining, setCombining] = useState(false)
   const [sendModal, setSendModal] = useState<{ open: boolean; naam: string; id?: string }>({ open: false, naam: '' })
   const [newListModal, setNewListModal] = useState(false)
   const [viewModal, setViewModal] = useState<{
@@ -453,21 +454,10 @@ export default function DashboardPage() {
     })
   }
 
-  async function openBekijk(lijst: Orderlijst) {
-    setViewModal({ open: true, lijst, regels: [], loading: true, catalog: null, hasChanges: false, saving: false, deleteConfirm: null })
-    const supabase = await getSupabase()
-    if (!supabase) { setViewModal(v => ({ ...v, loading: false })); return }
-
-    // Laad regels + volledige catalogus parallel
-    const [regelRes, bpRes, fnRes, hplRes, bwRes, insRes, hmRes] = await Promise.all([
-      supabase.from('orderlijst_regels').select(`
-        *,
-        baseplaten ( naam, dikte_mm ),
-        fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
-        fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam, gallery_foto_url ),
-        hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur, gallery_foto_url ),
-        hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur, gallery_foto_url )
-      `).eq('orderlijst_id', lijst.id).order('id'),
+  // Gedeelde catalogus-loader (hergebruikt door openBekijk, combineer en loskoppel)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function loadCatalog(supabase: any): Promise<CatalogCache> {
+    const [bpRes, fnRes, hplRes, bwRes, insRes, hmRes] = await Promise.all([
       supabase.from('baseplaten').select('*'),
       supabase.from('fineers').select('*'),
       supabase.from('hpl').select('*'),
@@ -475,28 +465,24 @@ export default function DashboardPage() {
       supabase.from('instellingen').select('*'),
       supabase.from('hotmelt_combinaties').select('*'),
     ])
-
-    // Bouw catalog op vanuit instellingen
     const ins = insRes.data ?? []
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const getIns = (key: string, def: number) =>
-      parseFloat(ins.find(i => i.sleutel === key)?.waarde ?? String(def))
-
+      parseFloat(ins.find((i: { sleutel: string; waarde: string }) => i.sleutel === key)?.waarde ?? String(def))
     let staffelFH = seedStaffelFineerHPL
     let staffelKaal = seedStaffelKaal
     try {
-      const fhRaw = ins.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
-      const kaalRaw = ins.find(i => i.sleutel === 'staffel_kaal')?.waarde
+      const fhRaw = ins.find((i: { sleutel: string }) => i.sleutel === 'staffel_fineer_hpl')?.waarde
+      const kaalRaw = ins.find((i: { sleutel: string }) => i.sleutel === 'staffel_kaal')?.waarde
       if (fhRaw) staffelFH = JSON.parse(fhRaw)
       if (kaalRaw) staffelKaal = JSON.parse(kaalRaw)
     } catch { /* gebruik seed defaults */ }
-
-    const catalog: CatalogCache = {
+    return {
       baseplaten: (bpRes.data ?? []) as Baseplaat[],
       fineers: (fnRes.data ?? []) as Fineer[],
       hplList: (hplRes.data ?? []) as HPL[],
       bewerkingen: (bwRes.data ?? []) as Bewerking[],
-      staffelFH,
-      staffelKaal,
+      staffelFH, staffelKaal,
       verzendDrempel: getIns('verzend_drempel', 1750),
       verzendKosten: getIns('verzend_kosten', 25),
       fineerlijm: getIns('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2),
@@ -505,8 +491,116 @@ export default function DashboardPage() {
       puHotmelt: getIns('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2),
       hotmeltCombs: (hmRes.data ?? []) as HotmeltCombinatie[],
     }
+  }
+
+  async function openBekijk(lijst: Orderlijst) {
+    setViewModal({ open: true, lijst, regels: [], loading: true, catalog: null, hasChanges: false, saving: false, deleteConfirm: null })
+    const supabase = await getSupabase()
+    if (!supabase) { setViewModal(v => ({ ...v, loading: false })); return }
+
+    const [regelRes, catalog] = await Promise.all([
+      supabase.from('orderlijst_regels').select(`
+        *,
+        baseplaten ( naam, dikte_mm ),
+        fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
+        fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam, gallery_foto_url ),
+        hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur, gallery_foto_url ),
+        hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur, gallery_foto_url )
+      `).eq('orderlijst_id', lijst.id).order('id'),
+      loadCatalog(supabase),
+    ])
 
     setViewModal(v => ({ ...v, regels: regelRes.data ?? [], catalog, loading: false }))
+  }
+
+  async function combineer() {
+    if (selectedLists.length < 2 || combining) return
+    setCombining(true)
+    const toastId = toast.loading('Orderlijsten combineren…')
+    try {
+      const supabase = await getSupabase()
+      if (!supabase) { toast.error('Geen verbinding', { id: toastId }); return }
+
+      const [catalog, ...regelResultaten] = await Promise.all([
+        loadCatalog(supabase),
+        ...selectedLists.map(id =>
+          supabase.from('orderlijst_regels').select('*').eq('orderlijst_id', id)
+        ),
+      ])
+
+      // Alle regels samenvoegen voor gecombineerde staffelberekening
+      const alleRegels: OrderlijstRegel[] = regelResultaten.flatMap(r => r.data ?? [])
+      const herberekend = herbereken(alleRegels, catalog)
+
+      // Herberekende prijzen opslaan
+      await Promise.all(herberekend.map(r =>
+        supabase.from('orderlijst_regels')
+          .update({ prijs_per_stuk: r.prijs_per_stuk, totaal_prijs: r.totaal_prijs })
+          .eq('id', r.id)
+      ))
+
+      // Koppel alle geselecteerde lijsten aan dezelfde groep
+      const groepId = crypto.randomUUID()
+      await Promise.all(selectedLists.map(id =>
+        supabase.from('orderlijsten').update({ combinatie_groep_id: groepId }).eq('id', id)
+      ))
+
+      setOrderlijsten(lists => lists.map(l =>
+        selectedLists.includes(l.id) ? { ...l, combinatie_groep_id: groepId } : l
+      ))
+      setSelectedLists([])
+      toast.success('Gecombineerd — prijzen herberekend op gecombineerde staffel', { id: toastId })
+    } catch (e) {
+      toast.error('Combineren mislukt', { id: toastId })
+      console.error(e)
+    } finally {
+      setCombining(false)
+    }
+  }
+
+  async function loskoppel(lijstId: string) {
+    const lijst = orderlijsten.find(l => l.id === lijstId)
+    const groepId = lijst?.combinatie_groep_id
+    if (!groepId || combining) return
+
+    const groepLijsten = orderlijsten.filter(l => l.combinatie_groep_id === groepId)
+    setCombining(true)
+    const toastId = toast.loading('Loskoppelen…')
+    try {
+      const supabase = await getSupabase()
+      if (!supabase) { toast.error('Geen verbinding', { id: toastId }); return }
+
+      const catalog = await loadCatalog(supabase)
+
+      // Herbereken elke lijst afzonderlijk op zijn eigen staffel-niveau
+      for (const groepLijst of groepLijsten) {
+        const { data: regels } = await supabase
+          .from('orderlijst_regels').select('*').eq('orderlijst_id', groepLijst.id)
+        if (regels && regels.length > 0) {
+          const herberekend = herbereken(regels, catalog)
+          await Promise.all(herberekend.map(r =>
+            supabase.from('orderlijst_regels')
+              .update({ prijs_per_stuk: r.prijs_per_stuk, totaal_prijs: r.totaal_prijs })
+              .eq('id', r.id)
+          ))
+        }
+      }
+
+      // Verwijder de koppeling van alle lijsten in de groep
+      await Promise.all(groepLijsten.map(l =>
+        supabase.from('orderlijsten').update({ combinatie_groep_id: null }).eq('id', l.id)
+      ))
+
+      setOrderlijsten(lists => lists.map(l =>
+        l.combinatie_groep_id === groepId ? { ...l, combinatie_groep_id: null } : l
+      ))
+      toast.success('Losgekoppeld — prijzen herberekend per afzonderlijke lijst', { id: toastId })
+    } catch (e) {
+      toast.error('Loskoppelen mislukt', { id: toastId })
+      console.error(e)
+    } finally {
+      setCombining(false)
+    }
   }
 
   async function saveAantalWijzigingen() {
@@ -773,12 +867,19 @@ export default function DashboardPage() {
               {/* Combine toolbar */}
               {selectedLists.length >= 2 && (
                 <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 mb-4">
-                  <span className="text-sm text-blue-700 font-medium">{selectedLists.length} lijsten geselecteerd</span>
-                  <button className="px-4 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">
-                    Combineer
+                  <div className="flex-1">
+                    <p className="text-sm text-blue-700 font-medium">{selectedLists.length} lijsten geselecteerd</p>
+                    <p className="text-xs text-blue-500 mt-0.5">Aantallen worden samengeteld voor een gunstigere staffelkorting</p>
+                  </div>
+                  <button
+                    onClick={combineer}
+                    disabled={combining}
+                    className="px-4 py-1.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {combining ? 'Bezig…' : 'Combineer'}
                   </button>
-                  <button onClick={() => setSelectedLists([])} className="text-sm text-blue-500 hover:underline ml-auto">
-                    Selectie opheffen
+                  <button onClick={() => setSelectedLists([])} className="text-sm text-blue-500 hover:underline">
+                    Annuleer
                   </button>
                 </div>
               )}
@@ -787,60 +888,93 @@ export default function DashboardPage() {
               <div className="mb-6">
                 <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Actuele orderlijsten</h2>
                 <div className="space-y-3">
-                  {actueleListjes.map(lijst => (
-                    <div
-                      key={lijst.id}
-                      className={`bg-white rounded-xl border p-4 transition-all ${
-                        selectedLists.includes(lijst.id) ? 'border-blue-400 shadow-sm' : 'border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedLists.includes(lijst.id)}
-                          onChange={() => toggleSelectList(lijst.id)}
-                          className="mt-1 w-4 h-4 rounded border-gray-300 text-blue-600"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-gray-800">{lijst.naam}</p>
+                  {actueleListjes.map(lijst => {
+                    const isCombined = !!lijst.combinatie_groep_id
+                    const partnerNamen = isCombined
+                      ? actueleListjes
+                          .filter(l => l.combinatie_groep_id === lijst.combinatie_groep_id && l.id !== lijst.id)
+                          .map(l => l.naam)
+                      : []
+                    const isSelected = selectedLists.includes(lijst.id)
+                    // Gecombineerde lijsten kunnen niet geselecteerd worden voor een nieuwe combinatie
+                    const canSelect = !isCombined
+                    return (
+                      <div
+                        key={lijst.id}
+                        className={`bg-white rounded-xl border p-4 transition-all ${
+                          isSelected ? 'border-blue-400 shadow-sm'
+                          : isCombined ? 'border-indigo-200 bg-indigo-50/30'
+                          : 'border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => canSelect && toggleSelectList(lijst.id)}
+                            disabled={!canSelect}
+                            title={isCombined ? 'Koppel eerst los om te herselectioneren' : undefined}
+                            className="mt-1 w-4 h-4 rounded border-gray-300 text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-semibold text-gray-800">{lijst.naam}</p>
+                              <button onClick={() => toggleListStatus(lijst.id)} className="cursor-pointer">
+                                <Badge variant={lijst.status === 'actueel' ? 'active' : 'concept'}>
+                                  {lijst.status === 'actueel' ? 'Actueel' : 'Concept'}
+                                </Badge>
+                              </button>
+                              {isCombined && (
+                                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                  </svg>
+                                  Gecombineerd
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              Bijgewerkt: {new Date(lijst.bijgewerkt_op).toLocaleDateString('nl-NL')}
+                            </p>
+                            {isCombined && partnerNamen.length > 0 && (
+                              <p className="text-xs text-indigo-500 mt-0.5">
+                                Gecombineerd met: {partnerNamen.join(', ')}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+                            {isCombined && (
+                              <button
+                                onClick={() => loskoppel(lijst.id)}
+                                disabled={combining}
+                                className="px-3 py-1.5 text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                🔗 Loskoppel
+                              </button>
+                            )}
                             <button
-                              onClick={() => toggleListStatus(lijst.id)}
-                              className="cursor-pointer"
+                              onClick={() => openBekijk(lijst)}
+                              className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                             >
-                              <Badge variant={lijst.status === 'actueel' ? 'active' : 'concept'}>
-                                {lijst.status === 'actueel' ? 'Actueel' : 'Concept'}
-                              </Badge>
+                              Bekijk
+                            </button>
+                            <button
+                              onClick={() => setSendModal({ open: true, naam: lijst.naam, id: lijst.id })}
+                              className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                            >
+                              Verstuur
+                            </button>
+                            <button
+                              onClick={() => deleteList(lijst.id)}
+                              className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                            >
+                              Verwijder
                             </button>
                           </div>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            Aangemaakt: {new Date(lijst.aangemaakt_op).toLocaleDateString('nl-NL')}
-                            {' · '}Bijgewerkt: {new Date(lijst.bijgewerkt_op).toLocaleDateString('nl-NL')}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => openBekijk(lijst)}
-                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                          >
-                            Bekijk
-                          </button>
-                          <button
-                            onClick={() => setSendModal({ open: true, naam: lijst.naam, id: lijst.id })}
-                            className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-                          >
-                            Verstuur
-                          </button>
-                          <button
-                            onClick={() => deleteList(lijst.id)}
-                            className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                          >
-                            Verwijder
-                          </button>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                   {actueleListjes.length === 0 && (
                     <div className="text-center py-8 text-gray-400 bg-white rounded-xl border border-gray-200">
                       <p className="text-3xl mb-2">📋</p>

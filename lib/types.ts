@@ -101,6 +101,7 @@ export interface Orderlijst {
   fineerkeuze?: string
   fineerkeuze_datum?: string
   fineer_afstemming?: string
+  combinatie_groep_id?: string | null
 }
 
 // ─── OrderlijstRegel ──────────────────────────────────────────────────────────
