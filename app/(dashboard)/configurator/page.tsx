@@ -132,12 +132,11 @@ export default function ConfiguratorPage() {
       if (lijsten) setOrderlijsten(lijsten)
 
       // Load catalog (baseplaten, fineers, hpl, bewerkingen)
-      const [bpRes, fnRes, hplRes, bwRes, stRes, insRes, uitRes, hmRes] = await Promise.all([
+      const [bpRes, fnRes, hplRes, bwRes, insRes, uitRes, hmRes] = await Promise.all([
         supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
         supabase.from('fineers').select('*').order('volgorde'),
         supabase.from('hpl').select('*').order('kleur'),
         supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
-        supabase.from('staffelregels').select('*').order('van_aantal'),
         supabase.from('instellingen').select('*'),
         supabase.from('uitsluitingen').select('*'),
         supabase.from('hotmelt_combinaties').select('*'),
@@ -155,20 +154,20 @@ export default function ConfiguratorPage() {
           : s
         )
       }
-      if (stRes.data?.length) {
-        // staffelregels table has a 'type' or split by van/tot — use all for both for now
-        setStaffelFH(stRes.data)
-        setStaffelKaal(stRes.data)
-      }
       if (insRes.data?.length) {
+        const ins = insRes.data
         const get = (key: string, def: number) =>
-          parseFloat(insRes.data!.find(i => i.sleutel === key)?.waarde ?? String(def))
+          parseFloat(ins.find(i => i.sleutel === key)?.waarde ?? String(def))
         setVerzendDrempel(get('verzend_drempel', 1750))
         setVerzendKosten(get('verzend_kosten', 25))
         setFineerlijm(get('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2))
         setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
         setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
         setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
+        const fhRaw = ins.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
+        const kaalRaw = ins.find(i => i.sleutel === 'staffel_kaal')?.waarde
+        if (fhRaw) { try { setStaffelFH(JSON.parse(fhRaw)) } catch { /* keep seed */ } }
+        if (kaalRaw) { try { setStaffelKaal(JSON.parse(kaalRaw)) } catch { /* keep seed */ } }
       }
       if (hmRes.data) setHotmeltCombs(hmRes.data as HotmeltCombinatie[])
     }

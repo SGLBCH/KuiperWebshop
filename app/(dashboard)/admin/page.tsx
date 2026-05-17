@@ -218,6 +218,10 @@ export default function AdminPage() {
           setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
           setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
           setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
+          const fhRaw = insData.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
+          const kaalRaw = insData.find(i => i.sleutel === 'staffel_kaal')?.waarde
+          if (fhRaw) { try { setStaffelFH(JSON.parse(fhRaw)) } catch { /* keep seed */ } }
+          if (kaalRaw) { try { setStaffelKaal(JSON.parse(kaalRaw)) } catch { /* keep seed */ } }
         }
         const { data: hmData } = await supabase.from('hotmelt_combinaties').select('*')
         if (hmData) setHotmeltCombs(hmData as HotmeltCombinatie[])
@@ -763,6 +767,23 @@ export default function AdminPage() {
       toast.error('Opslaan mislukt', { id: toastId })
       console.error(e)
     }
+  }
+
+  async function saveStaffel() {
+    const toastId = toast.loading('Staffel opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const upserts = [
+        { sleutel: 'staffel_fineer_hpl', waarde: JSON.stringify(staffelFH) },
+        { sleutel: 'staffel_kaal', waarde: JSON.stringify(staffelKaal) },
+        { sleutel: 'verzend_drempel', waarde: String(verzendDrempel) },
+        { sleutel: 'verzend_kosten', waarde: String(verzendKosten) },
+      ]
+      const { error } = await supabase.from('instellingen').upsert(upserts, { onConflict: 'sleutel' })
+      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      toast.success('Staffel opgeslagen', { id: toastId })
+    } catch (e) { toast.error('Opslaan mislukt', { id: toastId }); console.error(e) }
   }
 
   async function saveVasteKosten() {
@@ -1860,7 +1881,7 @@ export default function AdminPage() {
             </div>
 
             <button
-              onClick={() => toast.success('Staffel opgeslagen')}
+              onClick={saveStaffel}
               className="px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700"
             >
               Opslaan
