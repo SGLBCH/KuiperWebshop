@@ -772,13 +772,35 @@ export default function AdminPage() {
     try {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
-      const [r1, r2, r3] = await Promise.all([
-        supabase.from('baseplaten').upsert(baseplaten.map(p => ({ id: p.id, prijs_per_m2: p.prijs_per_m2, beschikbaar: p.beschikbaar })) as Record<string, unknown>[]),
-        supabase.from('fineers').upsert(fineers.map(f => ({ id: f.id, prijs_voorzijde_lang: f.prijs_voorzijde_lang, prijs_voorzijde_kort: f.prijs_voorzijde_kort, prijs_tegenzijde_lang: f.prijs_tegenzijde_lang, prijs_tegenzijde_kort: f.prijs_tegenzijde_kort, fk_advies: f.fk_advies })) as Record<string, unknown>[]),
-        supabase.from('hpl').upsert(hplList.map(h => ({ id: h.id, prijs_lang: h.prijs_lang, prijs_kort: h.prijs_kort })) as Record<string, unknown>[]),
+
+      const results = await Promise.all([
+        ...baseplaten.map(p =>
+          supabase.from('baseplaten')
+            .update({ prijs_per_m2: p.prijs_per_m2, beschikbaar: p.beschikbaar })
+            .eq('id', p.id)
+        ),
+        ...fineers.map(f =>
+          supabase.from('fineers')
+            .update({
+              prijs_voorzijde_lang: f.prijs_voorzijde_lang,
+              prijs_voorzijde_kort: f.prijs_voorzijde_kort,
+              prijs_tegenzijde_lang: f.prijs_tegenzijde_lang,
+              prijs_tegenzijde_kort: f.prijs_tegenzijde_kort,
+              fk_advies: f.fk_advies,
+            })
+            .eq('id', f.id)
+        ),
+        ...hplList.map(h =>
+          supabase.from('hpl')
+            .update({ prijs_lang: h.prijs_lang, prijs_kort: h.prijs_kort })
+            .eq('id', h.id)
+        ),
       ])
-      if (r1.error || r2.error || r3.error) {
-        toast.error('Sommige prijzen konden niet worden opgeslagen', { id: toastId })
+
+      const failed = results.filter(r => r.error)
+      if (failed.length > 0) {
+        console.error('Prijzen opslaan fouten:', failed.map(r => r.error))
+        toast.error(`${failed.length} prijs(zen) konden niet worden opgeslagen`, { id: toastId })
         return
       }
       toast.success('Prijzen opgeslagen', { id: toastId })
