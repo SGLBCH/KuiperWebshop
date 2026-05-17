@@ -114,23 +114,42 @@ export default function AdminPage() {
           setRolKeuzes(Object.fromEntries(rows.map(r => [r.id, 'kijker'])))
         }
 
-        // Fetch approved customers
+        // Fetch approved customers (incl. last_seen_at)
         const { data: klantenData } = await supabase
           .from('profiles')
-          .select('id, naam, bedrijf, rol, status, aangemaakt_op')
+          .select('id, naam, bedrijf, rol, status, aangemaakt_op, last_seen_at')
           .in('status', ['goedgekeurd', 'gedeactiveerd'])
           .order('aangemaakt_op', { ascending: false })
 
         if (klantenData && klantenData.length > 0) {
-          setKlanten(klantenData.map(k => ({
-            id: k.id,
-            naam: k.naam ?? '—',
-            bedrijf: k.bedrijf ?? '—',
-            rol: k.rol ?? 'kijker',
-            status: k.status,
-            last_seen: '—',
-            clicks: 0,
-          })))
+          const userIds = klantenData.map(k => k.id)
+
+          // Activiteit: tel orderlijsten en aanvragen per gebruiker
+          const [{ data: olData }, { data: aqData }] = await Promise.all([
+            supabase.from('orderlijsten').select('user_id').in('user_id', userIds),
+            supabase.from('aanvragen').select('user_id').in('user_id', userIds),
+          ])
+
+          const olCount: Record<string, number> = {}
+          const aqCount: Record<string, number> = {}
+          ;(olData ?? []).forEach((r: { user_id: string }) => { olCount[r.user_id] = (olCount[r.user_id] ?? 0) + 1 })
+          ;(aqData ?? []).forEach((r: { user_id: string }) => { aqCount[r.user_id] = (aqCount[r.user_id] ?? 0) + 1 })
+
+          setKlanten(klantenData.map(k => {
+            const lastSeenRaw = k.last_seen_at as string | null
+            const lastSeen = lastSeenRaw
+              ? new Date(lastSeenRaw).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })
+              : '—'
+            return {
+              id: k.id,
+              naam: k.naam ?? '—',
+              bedrijf: k.bedrijf ?? '—',
+              rol: k.rol ?? 'kijker',
+              status: k.status,
+              last_seen: lastSeen,
+              clicks: (olCount[k.id] ?? 0) + (aqCount[k.id] ?? 0),
+            }
+          }))
         }
 
         // Fetch aanvragen (verstuurd door klanten)
@@ -861,6 +880,50 @@ export default function AdminPage() {
   // Aanvragen sub-tab
   const [aanvraagSubTab, setAanvraagSubTab] = useState<'definitief' | 'concepten'>('definitief')
 
+  // Concept inzien modal
+  const [conceptModal, setConceptModal] = useState<{
+    open: boolean
+    naam: string
+    klant: string
+    regels: { id: string; categorie: string; plaatNaam: string; afwerking: string; aantal: number; totaal_prijs: number | null }[]
+    loading: boolean
+  }>({ open: false, naam: '', klant: '', regels: [], loading: false })
+
+  async function openConceptModal(conceptId: string, naam: string, klant: string) {
+    setConceptModal({ open: true, naam, klant, regels: [], loading: true })
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
+      setConceptModal(v => ({ ...v, loading: false }))
+      return
+    }
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('orderlijst_regels')
+      .select(`
+        id, categorie, aantal, totaal_prijs,
+        baseplaten ( naam, dikte_mm ),
+        fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam ),
+        fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam ),
+        hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur ),
+        hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur )
+      `)
+      .eq('orderlijst_id', conceptId)
+      .order('id')
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const regels = (data ?? []).map((r: any) => {
+      const plaatNaam = `${r.baseplaten?.naam ?? '—'} ${r.baseplaten?.dikte_mm ?? ''}mm`
+      const afwerking = r.categorie === 'fineer'
+        ? `Fineer: ${r.fineers_voor?.naam ?? '—'} / ${r.fineers_tegen?.naam ?? '—'}`
+        : r.categorie === 'hpl'
+        ? `HPL: ${r.hpl_voor_data?.kleur ?? '—'} / ${r.hpl_tegen_data?.kleur ?? '—'}`
+        : 'Kaal'
+      return { id: r.id, categorie: r.categorie, plaatNaam, afwerking, aantal: r.aantal, totaal_prijs: r.totaal_prijs }
+    })
+    setConceptModal(v => ({ ...v, regels, loading: false }))
+  }
+
   const TABS: { id: AdminTab; label: string }[] = [
     { id: 'aanmeldingen', label: 'Aanmeldingen' },
     { id: 'klanten', label: 'Klanten' },
@@ -1150,6 +1213,7 @@ export default function AdminPage() {
   }
 
   return (
+    <>
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div className="flex items-center gap-3 mb-5">
         <h1 className="text-xl font-bold text-gray-800">Beheerpaneel</h1>
@@ -1254,7 +1318,7 @@ export default function AdminPage() {
                     <th className="text-left py-2 px-3 font-semibold text-gray-600">Rol</th>
                     <th className="text-left py-2 px-3 font-semibold text-gray-600">Status</th>
                     <th className="text-left py-2 px-3 font-semibold text-gray-600">Laatste sessie</th>
-                    <th className="text-left py-2 px-3 font-semibold text-gray-600">Kliks</th>
+                    <th className="text-left py-2 px-3 font-semibold text-gray-600" title="Aantal orderlijsten + aanvragen">Activiteit</th>
                     <th className="text-left py-2 px-3 font-semibold text-gray-600">Actie</th>
                   </tr>
                 </thead>
@@ -1385,6 +1449,7 @@ export default function AdminPage() {
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Klant</th>
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Status</th>
                         <th className="text-left py-2 px-3 font-semibold text-gray-600">Bijgewerkt</th>
+                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Actie</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1399,6 +1464,14 @@ export default function AdminPage() {
                             </span>
                           </td>
                           <td className="py-3 px-3 text-gray-400 text-xs">{c.bijgewerkt}</td>
+                          <td className="py-3 px-3">
+                            <button
+                              onClick={() => openConceptModal(c.id, c.naam, c.klant)}
+                              className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                            >
+                              Bekijk regels
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -2535,6 +2608,63 @@ export default function AdminPage() {
         )}
       </div>
     </div>
+
+    {/* Concept-regels modal */}
+    {conceptModal.open && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setConceptModal(v => ({ ...v, open: false }))}>
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <div>
+              <h2 className="text-base font-bold text-gray-800">{conceptModal.naam}</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Klant: {conceptModal.klant}</p>
+            </div>
+            <button onClick={() => setConceptModal(v => ({ ...v, open: false }))} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">✕</button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            {conceptModal.loading ? (
+              <p className="text-sm text-gray-400 text-center py-8">Laden…</p>
+            ) : conceptModal.regels.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">Geen regels in deze orderlijst.</p>
+            ) : (
+              <div className="space-y-2">
+                {conceptModal.regels.map((r, i) => (
+                  <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-semibold text-gray-400 w-6">#{i + 1}</span>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{r.plaatNaam}</p>
+                        <p className="text-xs text-gray-500">{r.afwerking}</p>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium mr-2
+                        ${r.categorie === 'fineer' ? 'bg-amber-100 text-amber-700' : r.categorie === 'hpl' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'}`}>
+                        {r.categorie}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-700">{r.aantal}×</span>
+                      {r.totaal_prijs != null && (
+                        <span className="text-xs text-gray-400 ml-2">€ {r.totaal_prijs.toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {conceptModal.regels.length > 0 && (
+            <div className="px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-2xl flex justify-between items-center text-sm">
+              <span className="text-gray-500">{conceptModal.regels.length} regel{conceptModal.regels.length !== 1 ? 's' : ''}</span>
+              <span className="font-bold text-gray-800">
+                Totaal: € {conceptModal.regels.reduce((s, r) => s + (r.totaal_prijs ?? 0), 0).toFixed(2)}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

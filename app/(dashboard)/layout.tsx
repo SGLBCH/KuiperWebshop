@@ -19,6 +19,12 @@ async function getSession() {
       .eq('id', user.id)
       .single()
 
+    // Update last_seen_at non-blocking (column may not exist yet — ignore error)
+    supabase.from('profiles')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .then(() => {})
+
     return { demoMode: false, user, profile }
   } catch {
     return { demoMode: true, user: null, profile: null }
