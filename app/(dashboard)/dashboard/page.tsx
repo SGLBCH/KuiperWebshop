@@ -296,9 +296,10 @@ export default function DashboardPage() {
     catalog: CatalogCache | null
     hasChanges: boolean
     saving: boolean
+    deleteConfirm: { regelId: string; label: string } | null
   }>({
     open: false, lijst: null, regels: [], loading: false,
-    catalog: null, hasChanges: false, saving: false,
+    catalog: null, hasChanges: false, saving: false, deleteConfirm: null,
   })
 
   const getSupabase = useCallback(async () => {
@@ -453,7 +454,7 @@ export default function DashboardPage() {
   }
 
   async function openBekijk(lijst: Orderlijst) {
-    setViewModal({ open: true, lijst, regels: [], loading: true, catalog: null, hasChanges: false, saving: false })
+    setViewModal({ open: true, lijst, regels: [], loading: true, catalog: null, hasChanges: false, saving: false, deleteConfirm: null })
     const supabase = await getSupabase()
     if (!supabase) { setViewModal(v => ({ ...v, loading: false })); return }
 
@@ -550,6 +551,21 @@ export default function DashboardPage() {
       const herberekend = v.catalog ? herbereken(newRegels, v.catalog) : newRegels
       return { ...v, regels: herberekend, hasChanges: true }
     })
+  }
+
+  async function deleteRegel(regelId: string) {
+    // Verwijder meteen uit DB (niet wachten op "opslaan")
+    const supabase = await getSupabase()
+    if (supabase) {
+      const { error } = await supabase.from('orderlijst_regels').delete().eq('id', regelId)
+      if (error) { toast.error('Verwijderen mislukt: ' + error.message); return }
+    }
+    setViewModal(v => {
+      const newRegels = v.regels.filter(r => r.id !== regelId)
+      const herberekend = v.catalog ? herbereken(newRegels, v.catalog) : newRegels
+      return { ...v, regels: herberekend, deleteConfirm: null, hasChanges: newRegels.length !== v.regels.length ? v.hasChanges : false }
+    })
+    toast.success('Regel verwijderd')
   }
 
   function toggleSelectList(id: string) {
@@ -880,7 +896,7 @@ export default function DashboardPage() {
       {/* Bekijk modal */}
       {viewModal.open && viewModal.lijst && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
@@ -922,7 +938,7 @@ export default function DashboardPage() {
                       : 'Kaal'
                     return (
                       <div key={regel.id} className="bg-gray-50 rounded-xl border border-gray-200 p-4">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start justify-between gap-4 relative">
                           {fotoUrl && (
                             <img src={fotoUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 shrink-0" />
                           )}
@@ -943,6 +959,15 @@ export default function DashboardPage() {
                             {regel.bewerkingen?.length > 0 && (
                               <p className="text-xs text-gray-400 mt-0.5">Bewerkingen: {regel.bewerkingen.join(', ')}</p>
                             )}
+                            <button
+                              onClick={() => setViewModal(v => ({ ...v, deleteConfirm: { regelId: regel.id, label: `#${i + 1} — ${plaatNaam} ${plaatDikte}mm` } }))}
+                              className="mt-2 flex items-center gap-1 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-md transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Verwijder regel
+                            </button>
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
                             {/* +/- controls */}
@@ -1035,6 +1060,37 @@ export default function DashboardPage() {
                 </div>
               )
             })()}
+
+            {/* Bevestiging verwijderen — overlay binnen de modal */}
+            {viewModal.deleteConfirm && (
+              <div className="absolute inset-0 bg-white/80 backdrop-blur-sm rounded-2xl flex items-center justify-center z-10 p-6">
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm w-full text-center">
+                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-bold text-gray-800 mb-1">Regel verwijderen?</h3>
+                  <p className="text-sm text-gray-500 mb-5">
+                    <span className="font-medium text-gray-700">{viewModal.deleteConfirm.label}</span> wordt permanent verwijderd uit deze orderlijst.
+                  </p>
+                  <div className="flex gap-3 justify-center">
+                    <button
+                      onClick={() => setViewModal(v => ({ ...v, deleteConfirm: null }))}
+                      className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Annuleren
+                    </button>
+                    <button
+                      onClick={() => deleteRegel(viewModal.deleteConfirm!.regelId)}
+                      className="px-5 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg"
+                    >
+                      Ja, verwijder
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
