@@ -55,9 +55,8 @@ export default async function DashboardLayout({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             {/* Logo */}
-            <Link href="/dashboard" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <span className="text-xl">🪵</span>
-              <span className="font-bold text-lg" style={{ color: '#8B6F47' }}>Kuiper Holland</span>
+            <Link href="/dashboard" className="flex items-center hover:opacity-80 transition-opacity">
+              <img src="/logo.png" alt="Kuiper Holland" className="h-9 w-auto" />
             </Link>
 
             {/* Nav */}

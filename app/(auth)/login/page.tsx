@@ -102,11 +102,8 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-lg p-8">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <span className="text-3xl">🪵</span>
-            <h1 className="text-2xl font-bold" style={{ color: '#8B6F47' }}>
-              Kuiper Holland
-            </h1>
+          <div className="flex items-center justify-center mb-3">
+            <img src="/logo.png" alt="Kuiper Holland" className="h-16 w-auto" />
           </div>
           <p className="text-sm text-gray-500">
             Webshop voor interieurbouw professionals

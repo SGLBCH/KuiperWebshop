@@ -5,6 +5,11 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Kuiper Holland - B2B Webshop',
   description: 'B2B webshop voor fineer en HPL-gecoate plaatmaterialen voor interieurbouwers.',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({
