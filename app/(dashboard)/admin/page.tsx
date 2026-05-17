@@ -946,6 +946,56 @@ export default function AdminPage() {
     setConceptModal(v => ({ ...v, regels, loading: false }))
   }
 
+  // Klant-profiel modal
+  const [klantProfiel, setKlantProfiel] = useState<{
+    open: boolean
+    loading: boolean
+    data: {
+      id: string; naam: string; email: string; telefoon: string | null
+      bedrijf: string; kvk: string | null; branche: string | null; adres: string | null
+      rol: string; status: string; aangemaakt_op: string; last_seen_at: string | null
+      order_confirm_email: string | null; order_confirm_email_cc: string | null
+    } | null
+    clicks: number
+    savingRol: boolean
+    nieuwRol: string
+  }>({ open: false, loading: false, data: null, clicks: 0, savingRol: false, nieuwRol: '' })
+
+  async function openKlantProfiel(klantId: string) {
+    const klantRow = klanten.find(k => k.id === klantId)
+    setKlantProfiel({ open: true, loading: true, data: null, clicks: klantRow?.clicks ?? 0, savingRol: false, nieuwRol: klantRow?.rol ?? 'kijker' })
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
+      setKlantProfiel(v => ({ ...v, loading: false }))
+      return
+    }
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, naam, email, telefoon, bedrijf, kvk, branche, adres, rol, status, aangemaakt_op, last_seen_at, order_confirm_email, order_confirm_email_cc')
+      .eq('id', klantId)
+      .single()
+    setKlantProfiel(v => ({ ...v, loading: false, data: data ?? null, nieuwRol: data?.rol ?? v.nieuwRol }))
+  }
+
+  async function saveKlantRol() {
+    const { data, nieuwRol } = klantProfiel
+    if (!data) return
+    setKlantProfiel(v => ({ ...v, savingRol: true }))
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (supabaseUrl && supabaseUrl !== 'https://your-project.supabase.co') {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('profiles').update({ rol: nieuwRol }).eq('id', data.id)
+      if (error) { toast.error('Opslaan mislukt: ' + error.message); setKlantProfiel(v => ({ ...v, savingRol: false })); return }
+      setKlanten(list => list.map(k => k.id === data.id ? { ...k, rol: nieuwRol } : k))
+      setKlantProfiel(v => ({ ...v, data: { ...v.data!, rol: nieuwRol }, savingRol: false }))
+    }
+    toast.success('Rol opgeslagen')
+    setKlantProfiel(v => ({ ...v, savingRol: false }))
+  }
+
   const TABS: { id: AdminTab; label: string }[] = [
     { id: 'aanmeldingen', label: 'Aanmeldingen' },
     { id: 'klanten', label: 'Klanten' },
@@ -1375,7 +1425,10 @@ export default function AdminPage() {
                           >
                             {k.status === 'goedgekeurd' ? 'Deactiveer' : 'Activeer'}
                           </button>
-                          <button className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200">
+                          <button
+                            onClick={() => openKlantProfiel(k.id)}
+                            className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                          >
                             Profiel
                           </button>
                         </div>
@@ -2630,6 +2683,122 @@ export default function AdminPage() {
         )}
       </div>
     </div>
+
+    {/* Klant-profiel modal */}
+    {klantProfiel.open && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setKlantProfiel(v => ({ ...v, open: false }))}>
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h2 className="text-base font-bold text-gray-800">Klantprofiel</h2>
+            <button onClick={() => setKlantProfiel(v => ({ ...v, open: false }))} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg">✕</button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {klantProfiel.loading ? (
+              <p className="text-sm text-gray-400 text-center py-8">Laden…</p>
+            ) : !klantProfiel.data ? (
+              <p className="text-sm text-gray-400 text-center py-8">Profiel niet beschikbaar (demo modus).</p>
+            ) : (
+              <div className="space-y-5">
+                {/* Persoonlijk */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Persoonlijk</p>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Naam', value: klantProfiel.data.naam },
+                      { label: 'E-mail', value: klantProfiel.data.email },
+                      { label: 'Telefoon', value: klantProfiel.data.telefoon ?? '—' },
+                      { label: 'Bevestigingsmail', value: klantProfiel.data.order_confirm_email ?? '—' },
+                      { label: 'CC', value: klantProfiel.data.order_confirm_email_cc || '—' },
+                    ].map(f => (
+                      <div key={f.label} className="flex justify-between text-sm">
+                        <span className="text-gray-500 w-36 shrink-0">{f.label}</span>
+                        <span className="text-gray-800 font-medium text-right break-all">{f.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bedrijf */}
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Bedrijf</p>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Bedrijfsnaam', value: klantProfiel.data.bedrijf },
+                      { label: 'KvK', value: klantProfiel.data.kvk ?? '—' },
+                      { label: 'Branche', value: klantProfiel.data.branche ?? '—' },
+                      { label: 'Adres', value: klantProfiel.data.adres ?? '—' },
+                    ].map(f => (
+                      <div key={f.label} className="flex justify-between text-sm">
+                        <span className="text-gray-500 w-36 shrink-0">{f.label}</span>
+                        <span className="text-gray-800 font-medium text-right">{f.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Account */}
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Account</p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 w-36 shrink-0">Status</span>
+                      <span className={`font-medium ${klantProfiel.data.status === 'goedgekeurd' ? 'text-green-600' : 'text-red-500'}`}>
+                        {klantProfiel.data.status}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 w-36 shrink-0">Aangemaakt</span>
+                      <span className="text-gray-800 font-medium">
+                        {new Date(klantProfiel.data.aangemaakt_op).toLocaleDateString('nl-NL')}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 w-36 shrink-0">Laatste sessie</span>
+                      <span className="text-gray-800 font-medium">
+                        {klantProfiel.data.last_seen_at
+                          ? new Date(klantProfiel.data.last_seen_at).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })
+                          : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500 w-36 shrink-0">Activiteit</span>
+                      <span className="text-gray-800 font-medium">{klantProfiel.clicks} acties</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rol wijzigen */}
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Rol wijzigen</p>
+                  <div className="flex items-center gap-3">
+                    <select
+                      value={klantProfiel.nieuwRol}
+                      onChange={e => setKlantProfiel(v => ({ ...v, nieuwRol: e.target.value }))}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="kijker">Kijker — kan catalogus bekijken</option>
+                      <option value="calculator">Calculator — kan prijzen berekenen</option>
+                      <option value="inkoper">Inkoper — kan bestellingen plaatsen</option>
+                      <option value="admin">Admin — volledige toegang</option>
+                    </select>
+                    <button
+                      onClick={saveKlantRol}
+                      disabled={klantProfiel.savingRol || klantProfiel.nieuwRol === klantProfiel.data.rol}
+                      className="px-4 py-2 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      {klantProfiel.savingRol ? 'Opslaan…' : 'Opslaan'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">Huidige rol: <strong>{klantProfiel.data.rol}</strong></p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Concept-regels modal */}
     {conceptModal.open && (
