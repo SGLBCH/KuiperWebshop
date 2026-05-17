@@ -9,8 +9,12 @@ import {
   seedBaseplaten,
   seedOrderlijsten,
   seedOrders,
+  seedVasteKosten,
+  seedStaffelFineerHPL,
+  seedStaffelKaal,
 } from '@/lib/seed-data'
-import type { Orderlijst, Order } from '@/lib/types'
+import type { Orderlijst, Order, Baseplaat, Fineer, HPL, Bewerking, StaffelRegel, PricingData, HotmeltCombinatie } from '@/lib/types'
+import { calculatePrice, getMargeCoefficient } from '@/lib/pricing'
 import toast from 'react-hot-toast'
 
 type OrderlijstRegel = {
@@ -32,6 +36,22 @@ type OrderlijstRegel = {
   fineers_tegen?: { naam: string; gallery_foto_url?: string | null } | null
   hpl_voor_data?: { kleur: string; gallery_foto_url?: string | null } | null
   hpl_tegen_data?: { kleur: string; gallery_foto_url?: string | null } | null
+}
+
+type CatalogCache = {
+  baseplaten: Baseplaat[]
+  fineers: Fineer[]
+  hplList: HPL[]
+  bewerkingen: Bewerking[]
+  staffelFH: StaffelRegel[]
+  staffelKaal: StaffelRegel[]
+  verzendDrempel: number
+  verzendKosten: number
+  fineerlijm: number
+  schuurbanden: number
+  hplLijm: number
+  puHotmelt: number
+  hotmeltCombs: HotmeltCombinatie[]
 }
 
 type Tab = 'shop' | 'orders' | 'orderlijst'
@@ -268,8 +288,17 @@ export default function DashboardPage() {
   const [selectedLists, setSelectedLists] = useState<string[]>([])
   const [sendModal, setSendModal] = useState<{ open: boolean; naam: string; id?: string }>({ open: false, naam: '' })
   const [newListModal, setNewListModal] = useState(false)
-  const [viewModal, setViewModal] = useState<{ open: boolean; lijst: Orderlijst | null; regels: OrderlijstRegel[]; loading: boolean }>({
+  const [viewModal, setViewModal] = useState<{
+    open: boolean
+    lijst: Orderlijst | null
+    regels: OrderlijstRegel[]
+    loading: boolean
+    catalog: CatalogCache | null
+    hasChanges: boolean
+    saving: boolean
+  }>({
     open: false, lijst: null, regels: [], loading: false,
+    catalog: null, hasChanges: false, saving: false,
   })
 
   const getSupabase = useCallback(async () => {
@@ -347,23 +376,180 @@ export default function DashboardPage() {
     toast.success(`Orderlijst "${naam}" aangemaakt`)
   }
 
+  function herbereken(regels: OrderlijstRegel[], catalog: CatalogCache): OrderlijstRegel[] {
+    // 1. Aggregeer volumes voor staffel lookup
+    const totaalFH = regels
+      .filter(r => r.categorie === 'fineer' || r.categorie === 'hpl')
+      .reduce((s, r) => s + r.aantal, 0)
+    const totaalKaal = regels
+      .filter(r => r.categorie === 'kaal')
+      .reduce((s, r) => s + r.aantal, 0)
+
+    // 2. Zoek de juiste marge_coëfficiënt op per categorie
+    const coeffFH = getMargeCoefficient(totaalFH, catalog.staffelFH)
+    const coeffKaal = getMargeCoefficient(totaalKaal, catalog.staffelKaal)
+
+    // 3. Herbereken elke regel
+    return regels.map(regel => {
+      const plaat = catalog.baseplaten.find(b => b.id === regel.basisplaat_id)
+      if (!plaat || regel.aantal <= 0) return regel
+
+      const coeff = regel.categorie === 'kaal' ? coeffKaal : coeffFH
+
+      // Één-rij staffel met exact het berekende coëfficiënt
+      const mockStaffel: StaffelRegel[] = [
+        { id: '_mock', van_aantal: 1, tot_aantal: null, marge_coefficient: coeff },
+      ]
+
+      // PricingData — verzending op 99999999 want die berekenen we apart op orderniveau
+      const pricingData: PricingData = {
+        staffel: mockStaffel,
+        verzend_drempel: 99_999_999,
+        verzend_kosten: 0,
+        fineerlijm_per_m2: catalog.fineerlijm,
+        schuurbanden_per_m2: catalog.schuurbanden,
+        hpl_lijm_per_m2: catalog.hplLijm,
+        pu_hotmelt_per_m2: catalog.puHotmelt,
+        hotmelt_combinaties: catalog.hotmeltCombs,
+      }
+
+      // ConfiguratorState opbouwen vanuit de opgeslagen IDs
+      const configuratorState = {
+        basisplaat: plaat,
+        afmeting: plaat,
+        categorie: regel.categorie as 'kaal' | 'fineer' | 'hpl',
+        fineer_voor: regel.fineer_voor
+          ? catalog.fineers.find(f => f.id === regel.fineer_voor)
+          : undefined,
+        fineer_tegen: regel.fineer_tegen
+          ? catalog.fineers.find(f => f.id === regel.fineer_tegen)
+          : undefined,
+        hpl_voor: regel.hpl_voor
+          ? catalog.hplList.find(h => h.id === regel.hpl_voor)
+          : undefined,
+        hpl_tegen: regel.hpl_tegen
+          ? catalog.hplList.find(h => h.id === regel.hpl_tegen)
+          : undefined,
+        bewerkingen: catalog.bewerkingen.filter(b =>
+          (regel.bewerkingen ?? []).includes(b.id)
+        ),
+        voegmethode: regel.voegmethode ?? undefined,
+        invoer_modus: 'aantal' as const,
+        ruimte_indeling: (regel.ruimte_indeling ?? 'geen') as 'geen' | 'per_ruimte',
+        ruimtes: [],
+        aantal: regel.aantal,
+        prijs_per_stuk: 0,
+        totaal_prijs: 0,
+      }
+
+      const result = calculatePrice(configuratorState, pricingData)
+
+      return {
+        ...regel,
+        prijs_per_stuk: Math.round((result.subtotaal_na_staffel / regel.aantal) * 100) / 100,
+        totaal_prijs: Math.round(result.subtotaal_na_staffel * 100) / 100,
+      }
+    })
+  }
+
   async function openBekijk(lijst: Orderlijst) {
-    setViewModal({ open: true, lijst, regels: [], loading: true })
+    setViewModal({ open: true, lijst, regels: [], loading: true, catalog: null, hasChanges: false, saving: false })
     const supabase = await getSupabase()
     if (!supabase) { setViewModal(v => ({ ...v, loading: false })); return }
-    const { data } = await supabase
-      .from('orderlijst_regels')
-      .select(`
+
+    // Laad regels + volledige catalogus parallel
+    const [regelRes, bpRes, fnRes, hplRes, bwRes, insRes, hmRes] = await Promise.all([
+      supabase.from('orderlijst_regels').select(`
         *,
         baseplaten ( naam, dikte_mm ),
         fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
         fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam, gallery_foto_url ),
         hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur, gallery_foto_url ),
         hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur, gallery_foto_url )
-      `)
-      .eq('orderlijst_id', lijst.id)
-      .order('id')
-    setViewModal(v => ({ ...v, regels: data ?? [], loading: false }))
+      `).eq('orderlijst_id', lijst.id).order('id'),
+      supabase.from('baseplaten').select('*'),
+      supabase.from('fineers').select('*'),
+      supabase.from('hpl').select('*'),
+      supabase.from('bewerkingen').select('*'),
+      supabase.from('instellingen').select('*'),
+      supabase.from('hotmelt_combinaties').select('*'),
+    ])
+
+    // Bouw catalog op vanuit instellingen
+    const ins = insRes.data ?? []
+    const getIns = (key: string, def: number) =>
+      parseFloat(ins.find(i => i.sleutel === key)?.waarde ?? String(def))
+
+    let staffelFH = seedStaffelFineerHPL
+    let staffelKaal = seedStaffelKaal
+    try {
+      const fhRaw = ins.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
+      const kaalRaw = ins.find(i => i.sleutel === 'staffel_kaal')?.waarde
+      if (fhRaw) staffelFH = JSON.parse(fhRaw)
+      if (kaalRaw) staffelKaal = JSON.parse(kaalRaw)
+    } catch { /* gebruik seed defaults */ }
+
+    const catalog: CatalogCache = {
+      baseplaten: (bpRes.data ?? []) as Baseplaat[],
+      fineers: (fnRes.data ?? []) as Fineer[],
+      hplList: (hplRes.data ?? []) as HPL[],
+      bewerkingen: (bwRes.data ?? []) as Bewerking[],
+      staffelFH,
+      staffelKaal,
+      verzendDrempel: getIns('verzend_drempel', 1750),
+      verzendKosten: getIns('verzend_kosten', 25),
+      fineerlijm: getIns('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2),
+      schuurbanden: getIns('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2),
+      hplLijm: getIns('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2),
+      puHotmelt: getIns('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2),
+      hotmeltCombs: (hmRes.data ?? []) as HotmeltCombinatie[],
+    }
+
+    setViewModal(v => ({ ...v, regels: regelRes.data ?? [], catalog, loading: false }))
+  }
+
+  async function saveAantalWijzigingen() {
+    const { regels, lijst, catalog } = viewModal
+    if (!lijst || !catalog) return
+    setViewModal(v => ({ ...v, saving: true }))
+    try {
+      const supabase = await getSupabase()
+      if (!supabase) { toast.error('Geen verbinding'); setViewModal(v => ({ ...v, saving: false })); return }
+
+      // Update alle regels parallel (alleen prijsrelevante velden)
+      await Promise.all(regels.map(r =>
+        supabase.from('orderlijst_regels')
+          .update({ aantal: r.aantal, prijs_per_stuk: r.prijs_per_stuk, totaal_prijs: r.totaal_prijs })
+          .eq('id', r.id)
+      ))
+
+      // Update bijgewerkt_op op de orderlijst
+      await supabase.from('orderlijsten')
+        .update({ bijgewerkt_op: new Date().toISOString() })
+        .eq('id', lijst.id)
+
+      // Sync orderlijst in lokale state
+      setOrderlijsten(lists => lists.map(l =>
+        l.id === lijst.id ? { ...l, bijgewerkt_op: new Date().toISOString() } : l
+      ))
+
+      toast.success('Wijzigingen opgeslagen')
+      setViewModal(v => ({ ...v, hasChanges: false, saving: false }))
+    } catch (e) {
+      toast.error('Opslaan mislukt')
+      console.error(e)
+      setViewModal(v => ({ ...v, saving: false }))
+    }
+  }
+
+  function changeAantal(regelId: string, delta: number) {
+    setViewModal(v => {
+      const newRegels = v.regels.map(r =>
+        r.id === regelId ? { ...r, aantal: Math.max(1, r.aantal + delta) } : r
+      )
+      const herberekend = v.catalog ? herbereken(newRegels, v.catalog) : newRegels
+      return { ...v, regels: herberekend, hasChanges: true }
+    })
   }
 
   function toggleSelectList(id: string) {
@@ -702,7 +888,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400 mt-0.5">Orderlijst overzicht</p>
               </div>
               <button
-                onClick={() => setViewModal({ open: false, lijst: null, regels: [], loading: false })}
+                onClick={() => setViewModal(v => ({ ...v, open: false, lijst: null, regels: [], catalog: null, hasChanges: false }))}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
               >✕</button>
             </div>
@@ -758,9 +944,28 @@ export default function DashboardPage() {
                               <p className="text-xs text-gray-400 mt-0.5">Bewerkingen: {regel.bewerkingen.join(', ')}</p>
                             )}
                           </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-semibold text-gray-800">{regel.aantal}×</p>
-                            <p className="text-xs text-gray-400">€ {regel.totaal_prijs?.toFixed(2) ?? '—'}</p>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {/* +/- controls */}
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => changeAantal(regel.id, -1)}
+                                disabled={regel.aantal <= 1}
+                                className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-base font-bold leading-none"
+                              >−</button>
+                              <span className="w-8 text-center text-sm font-semibold text-gray-800">{regel.aantal}</span>
+                              <button
+                                onClick={() => changeAantal(regel.id, +1)}
+                                className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 text-base font-bold leading-none"
+                              >+</button>
+                            </div>
+                            <p className="text-xs text-gray-500">
+                              {regel.prijs_per_stuk != null
+                                ? `€ ${regel.prijs_per_stuk.toFixed(2)} / stuk`
+                                : ''}
+                            </p>
+                            <p className="text-xs font-semibold text-gray-700">
+                              € {regel.totaal_prijs?.toFixed(2) ?? '—'}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -771,35 +976,65 @@ export default function DashboardPage() {
             </div>
 
             {/* Footer */}
-            {viewModal.regels.length > 0 && (
-              <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-500">{viewModal.regels.length} regel{viewModal.regels.length !== 1 ? 's' : ''}</p>
-                    <p className="text-base font-bold text-gray-800">
-                      Totaal: € {viewModal.regels.reduce((s, r) => s + (r.totaal_prijs ?? 0), 0).toFixed(2)}
-                    </p>
+            {viewModal.regels.length > 0 && (() => {
+              const materiaalkosten = viewModal.regels.reduce((s, r) => s + (r.totaal_prijs ?? 0), 0)
+              const drempel = viewModal.catalog?.verzendDrempel ?? 1750
+              const verzendKosten = viewModal.catalog?.verzendKosten ?? 25
+              const verzending = materiaalkosten >= drempel ? 0 : verzendKosten
+              const totaal = materiaalkosten + verzending
+              return (
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl space-y-3">
+                  {/* Prijsoverzicht */}
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Materiaalkosten</span>
+                      <span>€ {materiaalkosten.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Verzendkosten {materiaalkosten >= drempel && <span className="text-green-600 text-xs">(gratis boven € {drempel})</span>}</span>
+                      <span className={verzending === 0 ? 'text-green-600' : ''}>
+                        {verzending === 0 ? 'Gratis' : `€ ${verzending.toFixed(2)}`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-bold text-gray-800 pt-1 border-t border-gray-200">
+                      <span>Totaal</span>
+                      <span>€ {totaal.toFixed(2)}</span>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setViewModal(v => ({ ...v, open: false })); router.push('/configurator') }}
-                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                    >
-                      + Voeg platen toe
-                    </button>
-                    <button
-                      onClick={() => {
-                        setViewModal(v => ({ ...v, open: false }))
-                        setSendModal({ open: true, naam: viewModal.lijst!.naam, id: viewModal.lijst!.id })
-                      }}
-                      className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg"
-                    >
-                      📤 Verstuur
-                    </button>
+
+                  {/* Acties */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <p className="text-xs text-gray-400">{viewModal.regels.length} regel{viewModal.regels.length !== 1 ? 's' : ''}</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {viewModal.hasChanges && (
+                        <button
+                          onClick={saveAantalWijzigingen}
+                          disabled={viewModal.saving}
+                          className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg"
+                        >
+                          {viewModal.saving ? 'Opslaan…' : '💾 Wijzigingen opslaan'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setViewModal(v => ({ ...v, open: false })); router.push('/configurator') }}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        + Voeg platen toe
+                      </button>
+                      <button
+                        onClick={() => {
+                          setViewModal(v => ({ ...v, open: false }))
+                          setSendModal({ open: true, naam: viewModal.lijst!.naam, id: viewModal.lijst!.id })
+                        }}
+                        className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg"
+                      >
+                        📤 Verstuur
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
         </div>
       )}
