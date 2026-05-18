@@ -185,6 +185,34 @@ CREATE TABLE IF NOT EXISTS public.orders (
 CREATE INDEX idx_orders_user_id ON public.orders(user_id);
 CREATE INDEX idx_orders_status  ON public.orders(status);
 
+-- ─── Uitsluitingen ───────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.uitsluitingen (
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  subject_type     TEXT NOT NULL CHECK (subject_type IN ('basisplaat', 'fineer', 'hpl', 'bewerking')),
+  subject_id       UUID NOT NULL,
+  uitgesloten_type TEXT NOT NULL CHECK (uitgesloten_type IN ('basisplaat', 'fineer', 'hpl', 'bewerking')),
+  uitgesloten_id   UUID NOT NULL,
+  reden            TEXT
+);
+
+CREATE INDEX idx_uitsluitingen_subject  ON public.uitsluitingen(subject_type, subject_id);
+CREATE INDEX idx_uitsluitingen_excluded ON public.uitsluitingen(uitgesloten_type, uitgesloten_id);
+
+-- ─── Insluitingen ─────────────────────────────────────────────────────────────
+-- If a subject has inclusions for a given type, ONLY those items of that type are shown.
+-- If no inclusions are defined, all items are available (minus any uitsluitingen).
+CREATE TABLE IF NOT EXISTS public.insluitingen (
+  id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  subject_type     TEXT NOT NULL CHECK (subject_type IN ('basisplaat', 'fineer', 'hpl', 'bewerking')),
+  subject_id       UUID NOT NULL,
+  ingesloten_type  TEXT NOT NULL CHECK (ingesloten_type IN ('basisplaat', 'fineer', 'hpl', 'bewerking')),
+  ingesloten_id    UUID NOT NULL,
+  reden            TEXT
+);
+
+CREATE INDEX idx_insluitingen_subject  ON public.insluitingen(subject_type, subject_id);
+CREATE INDEX idx_insluitingen_included ON public.insluitingen(ingesloten_type, ingesloten_id);
+
 -- ─── Trigger: auto-create profile on signup ──────────────────────────────────
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
