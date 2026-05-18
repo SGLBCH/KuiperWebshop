@@ -1282,8 +1282,13 @@ export default function AdminPage() {
           for (const row of parsedRows) {
             if (!row.id) { skipped++; continue }
             const patch: Record<string, unknown> = {}
-            if (row.prijs_per_m2 !== undefined) patch.prijs_per_m2 = parseFloat(row.prijs_per_m2) || 0
-            if (row.beschikbaar !== undefined) patch.beschikbaar = row.beschikbaar === 'true' || row.beschikbaar === '1'
+            if (row.prijs_per_m2 !== undefined) {
+              const v = parseFloat(row.prijs_per_m2)
+              if (!isNaN(v)) patch.prijs_per_m2 = v
+            }
+            if (row.beschikbaar !== undefined) {
+              patch.beschikbaar = row.beschikbaar.toLowerCase() === 'true' || row.beschikbaar === '1'
+            }
             if (Object.keys(patch).length === 0 || !priceFields.some(f => row[f] !== undefined)) { skipped++; continue }
             const { error } = await supabase.from('baseplaten').update(patch).eq('id', row.id)
             if (error) { skipped++ } else { updated++; setBaseplaten(b => b.map(x => x.id === row.id ? { ...x, ...patch } : x)) }
@@ -1292,10 +1297,9 @@ export default function AdminPage() {
           for (const row of parsedRows) {
             if (!row.id) { skipped++; continue }
             const patch: Record<string, unknown> = {}
-            if (row.prijs_voorzijde_lang !== undefined) patch.prijs_voorzijde_lang = parseFloat(row.prijs_voorzijde_lang) || 0
-            if (row.prijs_voorzijde_kort !== undefined) patch.prijs_voorzijde_kort = parseFloat(row.prijs_voorzijde_kort) || 0
-            if (row.prijs_tegenzijde_lang !== undefined) patch.prijs_tegenzijde_lang = parseFloat(row.prijs_tegenzijde_lang) || 0
-            if (row.prijs_tegenzijde_kort !== undefined) patch.prijs_tegenzijde_kort = parseFloat(row.prijs_tegenzijde_kort) || 0
+            for (const f of ['prijs_voorzijde_lang', 'prijs_voorzijde_kort', 'prijs_tegenzijde_lang', 'prijs_tegenzijde_kort'] as const) {
+              if (row[f] !== undefined) { const v = parseFloat(row[f]); if (!isNaN(v)) patch[f] = v }
+            }
             if (Object.keys(patch).length === 0) { skipped++; continue }
             const { error } = await supabase.from('fineers').update(patch).eq('id', row.id)
             if (error) { skipped++ } else { updated++; setFineers(f => f.map(x => x.id === row.id ? { ...x, ...patch } as Fineer : x)) }
@@ -1304,12 +1308,9 @@ export default function AdminPage() {
           for (const row of parsedRows) {
             if (!row.id) { skipped++; continue }
             const patch: Record<string, unknown> = {}
-            if (row.prijs_lang !== undefined) patch.prijs_lang = parseFloat(row.prijs_lang) || 0
-            if (row.prijs_kort !== undefined) patch.prijs_kort = parseFloat(row.prijs_kort) || 0
-            if (row.hpl_afm_lang_b !== undefined) patch.hpl_afm_lang_b = parseFloat(row.hpl_afm_lang_b) || 0
-            if (row.hpl_afm_lang_l !== undefined) patch.hpl_afm_lang_l = parseFloat(row.hpl_afm_lang_l) || 0
-            if (row.hpl_afm_kort_b !== undefined) patch.hpl_afm_kort_b = parseFloat(row.hpl_afm_kort_b) || 0
-            if (row.hpl_afm_kort_l !== undefined) patch.hpl_afm_kort_l = parseFloat(row.hpl_afm_kort_l) || 0
+            for (const f of ['prijs_lang', 'prijs_kort', 'hpl_afm_lang_b', 'hpl_afm_lang_l', 'hpl_afm_kort_b', 'hpl_afm_kort_l'] as const) {
+              if (row[f] !== undefined) { const v = parseFloat(row[f]); if (!isNaN(v)) patch[f] = v }
+            }
             if (Object.keys(patch).length === 0) { skipped++; continue }
             const { error } = await supabase.from('hpl').update(patch).eq('id', row.id)
             if (error) { skipped++ } else { updated++; setHplList(h => h.map(x => x.id === row.id ? { ...x, ...patch } as HPL : x)) }
