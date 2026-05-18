@@ -26,8 +26,10 @@ type AdminTab =
   | 'galerij_hpl'
   | 'bewerkingen'
   | 'uitsluitingen'
+  | 'insluitingen'
 
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
+type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
 
 const DEMO_AANMELDINGEN = [
   { id: 'a1', naam: 'Pieter Smit', bedrijf: 'Smit Interieur', email: 'p.smit@smitinterieur.nl', datum: '2026-05-07', rol: 'kijker' as const },
@@ -229,6 +231,9 @@ export default function AdminPage() {
 
         const { data: uitData } = await supabase.from('uitsluitingen').select('*')
         if (uitData) setUitsluitingen(uitData as UitsluitingRow[])
+
+        const { data: inslData } = await supabase.from('insluitingen').select('*')
+        if (inslData) setInsluitingen(inslData as InsluitingRow[])
 
         const { data: insData } = await supabase.from('instellingen').select('*')
         if (insData) {
@@ -896,6 +901,13 @@ export default function AdminPage() {
   // Uitsluiting modal state
   const emptyUitForm = { subject_type: 'basisplaat', subject_id: '', uitgesloten_type: 'bewerking', uitgesloten_id: '', reden: '' }
   const [uitModal, setUitModal] = useState<{ open: boolean; form: typeof emptyUitForm }>({ open: false, form: emptyUitForm })
+
+  // Insluitingen state
+  const [insluitingen, setInsluitingen] = useState<InsluitingRow[]>([])
+
+  // Insluiting modal state
+  const emptyInsForm = { subject_type: 'basisplaat', subject_id: '', ingesloten_type: 'bewerking', ingesloten_id: '', reden: '' }
+  const [insModal, setInsModal] = useState<{ open: boolean; form: typeof emptyInsForm }>({ open: false, form: emptyInsForm })
   const emptyBw = { naam: '', beschrijving: '', prijs: 0, compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, standaard_geselecteerd: false, volgorde: 0 }
   const [bwModal, setBwModal] = useState<{ open: boolean; item: Bewerking | null; form: typeof emptyBw }>({ open: false, item: null, form: emptyBw })
 
@@ -1007,6 +1019,7 @@ export default function AdminPage() {
     { id: 'galerij_hpl', label: 'Galerij HPL' },
     { id: 'bewerkingen', label: 'Bewerkingen' },
     { id: 'uitsluitingen', label: 'Uitsluitingen' },
+    { id: 'insluitingen', label: 'Insluitingen' },
   ]
 
   async function approveAanmelding(id: string) {
@@ -1129,6 +1142,15 @@ export default function AdminPage() {
     } catch { /* keep current */ }
   }
 
+  async function loadInsluitingen() {
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data } = await supabase.from('insluitingen').select('*')
+      if (data) setInsluitingen(data as InsluitingRow[])
+    } catch { /* keep current */ }
+  }
+
   async function saveUitsluiting() {
     const { form } = uitModal
     if (!form.subject_id || !form.uitgesloten_id) { toast.error('Selecteer beide items'); return }
@@ -1163,6 +1185,43 @@ export default function AdminPage() {
       if (error) { toast.error('Verwijderen mislukt: ' + error.message, { id: toastId }); return }
       toast.success('Verwijderd', { id: toastId })
       await loadUitsluitingen()
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
+  async function saveInsluiting() {
+    const { form } = insModal
+    if (!form.subject_id || !form.ingesloten_id) { toast.error('Selecteer beide items'); return }
+    if (form.subject_id === form.ingesloten_id && form.subject_type === form.ingesloten_type) {
+      toast.error('Subject en ingeslotene mogen niet hetzelfde zijn'); return
+    }
+    const toastId = toast.loading('Opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('insluitingen').insert({
+        subject_type: form.subject_type,
+        subject_id: form.subject_id,
+        ingesloten_type: form.ingesloten_type,
+        ingesloten_id: form.ingesloten_id,
+        reden: form.reden || null,
+      })
+      if (error) { toast.error('Opslaan mislukt: ' + error.message, { id: toastId }); return }
+      toast.success('Insluiting toegevoegd', { id: toastId })
+      setInsModal({ open: false, form: emptyInsForm })
+      await loadInsluitingen()
+    } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
+  }
+
+  async function deleteInsluiting(id: string) {
+    if (!window.confirm('Insluiting verwijderen?')) return
+    const toastId = toast.loading('Verwijderen…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { error } = await supabase.from('insluitingen').delete().eq('id', id)
+      if (error) { toast.error('Verwijderen mislukt: ' + error.message, { id: toastId }); return }
+      toast.success('Verwijderd', { id: toastId })
+      await loadInsluitingen()
     } catch (e) { toast.error('Fout', { id: toastId }); console.error(e) }
   }
 
@@ -2548,6 +2607,137 @@ export default function AdminPage() {
                   <div className="flex justify-end gap-2 pt-2">
                     <button onClick={() => setBwModal(m => ({ ...m, open: false }))} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Annuleren</button>
                     <button onClick={saveBw} className="px-5 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">Opslaan</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ─── INSLUITINGEN ─── */}
+        {activeTab === 'insluitingen' && (
+          <div className="p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Insluitingen / Verplichte combinaties</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Als een onderdeel insluitingen heeft, worden in de configurator <strong>alleen</strong> die items getoond voor dat type.</p>
+              </div>
+              <button
+                onClick={() => setInsModal({ open: true, form: emptyInsForm })}
+                className="text-sm px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700"
+              >
+                + Toevoegen
+              </button>
+            </div>
+
+            {insluitingen.length === 0 ? (
+              <div className="text-center py-10 text-gray-400">
+                <p className="text-3xl mb-2">🔒</p>
+                <p className="text-sm">Geen insluitingen ingesteld.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-2 px-3 font-semibold text-gray-500">Als subject</th>
+                      <th className="py-2 px-2"></th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-500">Alleen met</th>
+                      <th className="text-left py-2 px-3 font-semibold text-gray-500">Reden</th>
+                      <th className="py-2 px-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {insluitingen.map(u => (
+                      <tr key={u.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="py-3 px-3">
+                          <span className="text-xs text-gray-400 capitalize">{u.subject_type}:</span>{' '}
+                          <span className="font-medium text-gray-800">{resolveNaam(u.subject_type, u.subject_id)}</span>
+                        </td>
+                        <td className="py-3 px-2 text-green-500 font-bold">→</td>
+                        <td className="py-3 px-3">
+                          <span className="text-xs text-gray-400 capitalize">{u.ingesloten_type}:</span>{' '}
+                          <span className="font-medium text-gray-800">{resolveNaam(u.ingesloten_type, u.ingesloten_id)}</span>
+                        </td>
+                        <td className="py-3 px-3 text-gray-500 text-xs">{u.reden ?? '—'}</td>
+                        <td className="py-3 px-3 text-right">
+                          <button
+                            onClick={() => deleteInsluiting(u.id)}
+                            className="text-xs px-2.5 py-1 text-red-500 hover:bg-red-50 rounded-lg font-medium"
+                          >
+                            Verwijderen
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Insluiting modal */}
+            {insModal.open && (
+              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setInsModal(m => ({ ...m, open: false }))}>
+                <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-base font-semibold text-gray-800">Insluiting toevoegen</h3>
+                  <p className="text-xs text-gray-500">Als het gekozen subject is geselecteerd in de configurator, worden voor het gekozen type <strong>alleen</strong> de ingesloten items getoond.</p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Subject type</label>
+                      <select value={insModal.form.subject_type} onChange={e => setInsModal(m => ({ ...m, form: { ...m.form, subject_type: e.target.value, subject_id: '' } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                        <option value="basisplaat">Basisplaat</option>
+                        <option value="fineer">Fineer</option>
+                        <option value="hpl">HPL</option>
+                        <option value="bewerking">Bewerking</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Subject item</label>
+                      <select value={insModal.form.subject_id} onChange={e => setInsModal(m => ({ ...m, form: { ...m.form, subject_id: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                        <option value="">— Kies item —</option>
+                        {getItemsForType(insModal.form.subject_type).map(x => (
+                          <option key={x.id} value={x.id}>{x.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Toegestaan type</label>
+                      <select value={insModal.form.ingesloten_type} onChange={e => setInsModal(m => ({ ...m, form: { ...m.form, ingesloten_type: e.target.value, ingesloten_id: '' } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                        <option value="basisplaat">Basisplaat</option>
+                        <option value="fineer">Fineer</option>
+                        <option value="hpl">HPL</option>
+                        <option value="bewerking">Bewerking</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Toegestaan item</label>
+                      <select value={insModal.form.ingesloten_id} onChange={e => setInsModal(m => ({ ...m, form: { ...m.form, ingesloten_id: e.target.value } }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white">
+                        <option value="">— Kies item —</option>
+                        {getItemsForType(insModal.form.ingesloten_type).map(x => (
+                          <option key={x.id} value={x.id}>{x.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Reden (optioneel)</label>
+                    <input type="text" value={insModal.form.reden} onChange={e => setInsModal(m => ({ ...m, form: { ...m.form, reden: e.target.value } }))}
+                      placeholder="Bijv. alleen compatibel met deze afwerking"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button onClick={() => setInsModal(m => ({ ...m, open: false }))} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Annuleren</button>
+                    <button onClick={saveInsluiting} className="px-5 py-2 text-sm bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">Opslaan</button>
                   </div>
                 </div>
               </div>

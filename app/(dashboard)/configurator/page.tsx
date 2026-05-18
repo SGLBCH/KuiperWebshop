@@ -21,12 +21,20 @@ import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel,
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
+type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
 
 function isUitgesloten(list: UitsluitingRow[], tA: string, idA: string, tB: string, idB: string) {
   return list.some(u =>
     (u.subject_type === tA && u.subject_id === idA && u.uitgesloten_type === tB && u.uitgesloten_id === idB) ||
     (u.subject_type === tB && u.subject_id === idB && u.uitgesloten_type === tA && u.uitgesloten_id === idA)
   )
+}
+
+// Returns true if the item is blocked by inclusions (i.e. inclusions exist for this subject+type combo but this item is not in the list)
+function isNietIngesloten(list: InsluitingRow[], subjectType: string, subjectId: string, itemType: string, itemId: string): boolean {
+  const relevant = list.filter(u => u.subject_type === subjectType && u.subject_id === subjectId && u.ingesloten_type === itemType)
+  if (relevant.length === 0) return false
+  return !relevant.some(u => u.ingesloten_id === itemId)
 }
 
 // ─── Wood color map ──────────────────────────────────────────────────────────
@@ -84,6 +92,7 @@ export default function ConfiguratorPage() {
   const [hplList, setHplList] = useState<HPL[]>(seedHPL)
   const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
   const [uitsluitingen, setUitsluitingen] = useState<UitsluitingRow[]>([])
+  const [insluitingen, setInsluitingen] = useState<InsluitingRow[]>([])
   const [staffelFH, setStaffelFH] = useState(seedStaffelFineerHPL)
   const [staffelKaal, setStaffelKaal] = useState(seedStaffelKaal)
   const [verzendDrempel, setVerzendDrempel] = useState(1750)
@@ -132,13 +141,14 @@ export default function ConfiguratorPage() {
       if (lijsten) setOrderlijsten(lijsten)
 
       // Load catalog (baseplaten, fineers, hpl, bewerkingen)
-      const [bpRes, fnRes, hplRes, bwRes, insRes, uitRes, hmRes] = await Promise.all([
+      const [bpRes, fnRes, hplRes, bwRes, insRes, uitRes, inslRes, hmRes] = await Promise.all([
         supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
         supabase.from('fineers').select('*').order('volgorde'),
         supabase.from('hpl').select('*').order('kleur'),
         supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
         supabase.from('instellingen').select('*'),
         supabase.from('uitsluitingen').select('*'),
+        supabase.from('insluitingen').select('*'),
         supabase.from('hotmelt_combinaties').select('*'),
       ])
 
@@ -146,6 +156,7 @@ export default function ConfiguratorPage() {
       if (fnRes.data?.length) setFineers(fnRes.data)
       if (hplRes.data?.length) setHplList(hplRes.data)
       if (uitRes.data) setUitsluitingen(uitRes.data as UitsluitingRow[])
+      if (inslRes.data) setInsluitingen(inslRes.data as InsluitingRow[])
       if (bwRes.data?.length) {
         setBewerkingen(bwRes.data)
         // Pre-select standaard bewerkingen for fresh configurations
@@ -438,15 +449,16 @@ export default function ConfiguratorPage() {
                               onClick={() => setState(s => {
                                 const newState = { ...s, afmeting: p, basisplaat: p }
                                 newState.bewerkingen = s.bewerkingen.filter(b =>
-                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id)
+                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id) &&
+                                  !isNietIngesloten(insluitingen, 'basisplaat', p.id, 'bewerking', b.id)
                                 )
-                                if (s.fineer_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id))
+                                if (s.fineer_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id)))
                                   newState.fineer_voor = undefined
-                                if (s.fineer_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id))
+                                if (s.fineer_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id)))
                                   newState.fineer_tegen = undefined
-                                if (s.hpl_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id))
+                                if (s.hpl_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id)))
                                   newState.hpl_voor = undefined
-                                if (s.hpl_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id))
+                                if (s.hpl_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id)))
                                   newState.hpl_tegen = undefined
                                 return newState
                               })}
@@ -476,15 +488,16 @@ export default function ConfiguratorPage() {
                               onClick={() => setState(s => {
                                 const newState = { ...s, afmeting: p, basisplaat: p }
                                 newState.bewerkingen = s.bewerkingen.filter(b =>
-                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id)
+                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id) &&
+                                  !isNietIngesloten(insluitingen, 'basisplaat', p.id, 'bewerking', b.id)
                                 )
-                                if (s.fineer_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id))
+                                if (s.fineer_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id)))
                                   newState.fineer_voor = undefined
-                                if (s.fineer_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id))
+                                if (s.fineer_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id)))
                                   newState.fineer_tegen = undefined
-                                if (s.hpl_voor && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id))
+                                if (s.hpl_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id)))
                                   newState.hpl_voor = undefined
-                                if (s.hpl_tegen && isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id))
+                                if (s.hpl_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id)))
                                   newState.hpl_tegen = undefined
                                 return newState
                               })}
@@ -554,7 +567,8 @@ export default function ConfiguratorPage() {
                       <option value="">— Geen fineer —</option>
                       {fineers.filter(f =>
                         (f.status_lang !== 'niet_beschikbaar' || f.status_kort !== 'niet_beschikbaar') &&
-                        (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id))
+                        (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id)) &&
+                        (!state.afmeting || !isNietIngesloten(insluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id))
                       ).map(f => (
                         <option key={f.id} value={f.id}>{f.naam}</option>
                       ))}
@@ -584,7 +598,8 @@ export default function ConfiguratorPage() {
                     >
                       <option value="">— Geen fineer —</option>
                       {fineers.filter(f =>
-                        !state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id)
+                        (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id)) &&
+                        (!state.afmeting || !isNietIngesloten(insluitingen, 'basisplaat', state.afmeting.id, 'fineer', f.id))
                       ).map(f => (
                         <option key={f.id} value={f.id}>{f.naam}</option>
                       ))}
@@ -688,7 +703,8 @@ export default function ConfiguratorPage() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Voorzijde *</label>
                     <div className="space-y-2">
                       {hplList.filter(h =>
-                        !state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id)
+                        (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id)) &&
+                        (!state.afmeting || !isNietIngesloten(insluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id))
                       ).map(h => {
                         const isSelected = state.hpl_voor?.id === h.id
                         return (
@@ -725,7 +741,8 @@ export default function ConfiguratorPage() {
                         — Geen tegenzijde —
                       </button>
                       {hplList.filter(h =>
-                        !state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id)
+                        (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id)) &&
+                        (!state.afmeting || !isNietIngesloten(insluitingen, 'basisplaat', state.afmeting.id, 'hpl', h.id))
                       ).map(h => {
                         const isSelected = state.hpl_tegen?.id === h.id
                         return (
@@ -772,8 +789,11 @@ export default function ConfiguratorPage() {
                   b.beschikbaar &&
                   (!state.categorie || b.compatibiliteit.includes(state.categorie)) &&
                   (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'bewerking', b.id)) &&
+                  (!state.afmeting || !isNietIngesloten(insluitingen, 'basisplaat', state.afmeting.id, 'bewerking', b.id)) &&
                   (!state.fineer_voor || !isUitgesloten(uitsluitingen, 'fineer', state.fineer_voor.id, 'bewerking', b.id)) &&
-                  (!state.hpl_voor || !isUitgesloten(uitsluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id))
+                  (!state.fineer_voor || !isNietIngesloten(insluitingen, 'fineer', state.fineer_voor.id, 'bewerking', b.id)) &&
+                  (!state.hpl_voor || !isUitgesloten(uitsluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id)) &&
+                  (!state.hpl_voor || !isNietIngesloten(insluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id))
                 )
                 .map(b => {
                   const isSelected = state.bewerkingen.some(sb => sb.id === b.id)
