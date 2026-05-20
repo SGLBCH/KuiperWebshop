@@ -1234,6 +1234,13 @@ export default function AdminPage() {
   }
 
   function exportPrijzenCsv(type: 'baseplaten' | 'fineers' | 'hpl') {
+    function cell(val: unknown): string {
+      if (val === null || val === undefined) return ''
+      if (typeof val === 'number') return String(val)
+      if (typeof val === 'boolean') return val ? 'true' : 'false'
+      const s = String(val)
+      return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g, '""') + '"' : s
+    }
     let rows: Record<string, unknown>[]
     let filename: string
     if (type === 'baseplaten') {
@@ -1248,7 +1255,7 @@ export default function AdminPage() {
     }
     if (!rows.length) { toast.error('Geen data om te exporteren'); return }
     const keys = Object.keys(rows[0])
-    const csv = [keys.join(','), ...rows.map(row => keys.map(k => JSON.stringify(row[k] ?? '')).join(','))].join('\n')
+    const csv = [keys.join(','), ...rows.map(row => keys.map(k => cell(row[k])).join(','))].join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
