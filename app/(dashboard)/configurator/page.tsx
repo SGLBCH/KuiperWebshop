@@ -102,6 +102,7 @@ export default function ConfiguratorPage() {
   const [hplLijm, setHplLijm] = useState(seedVasteKosten.hpl_lijm_per_m2)
   const [puHotmelt, setPuHotmelt] = useState(seedVasteKosten.pu_hotmelt_per_m2)
   const [hotmeltCombs, setHotmeltCombs] = useState<HotmeltCombinatie[]>([])
+  const [fotoZoom, setFotoZoom] = useState<{ url: string; naam: string } | null>(null)
 
   const pricingData: PricingData = {
     staffel: state.categorie === 'kaal' ? staffelKaal : staffelFH,
@@ -550,6 +551,10 @@ export default function ConfiguratorPage() {
               <>
                 <h2 className="text-xl font-bold text-gray-800">Fineer instellen</h2>
 
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+                  ℹ️ Fineer is een natuurproduct. Kleur en nerf op de foto zijn indicatief — elk vel fineer is uniek van kleur en tekening.
+                </div>
+
                 {/* Voorzijde / Tegenzijde */}
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
@@ -572,15 +577,23 @@ export default function ConfiguratorPage() {
                       ))}
                     </select>
                     {state.fineer_voor && (
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-3 relative group w-fit">
                         {state.fineer_voor.gallery_foto_url ? (
-                          <img src={state.fineer_voor.gallery_foto_url} alt={state.fineer_voor.naam} className="w-10 h-10 rounded border border-gray-200 object-cover shrink-0" />
+                          <img src={state.fineer_voor.gallery_foto_url} alt={state.fineer_voor.naam} className="w-32 h-32 rounded-lg border border-gray-200 object-cover" />
                         ) : (
-                          <div className="w-10 h-10 rounded border border-gray-200 shrink-0" style={{ backgroundColor: WOOD_COLORS[state.fineer_voor.naam] ?? '#D4B896' }} />
+                          <div className="w-32 h-32 rounded-lg border border-gray-200" style={{ backgroundColor: WOOD_COLORS[state.fineer_voor.naam] ?? '#D4B896' }} />
                         )}
-                        <span className="text-xs text-gray-500">
-                          {isLang ? `€ ${state.fineer_voor.prijs_voorzijde_lang.toFixed(2)}/m² (lang)` : `€ ${state.fineer_voor.prijs_voorzijde_kort.toFixed(2)}/m² (kort)`}
-                        </span>
+                        {state.fineer_voor.gallery_foto_url && (
+                          <button
+                            onClick={() => setFotoZoom({ url: state.fineer_voor!.gallery_foto_url!, naam: state.fineer_voor!.naam })}
+                            className="absolute top-1.5 right-1.5 bg-white/80 hover:bg-white rounded-full p-1 shadow transition-opacity opacity-0 group-hover:opacity-100"
+                            title="Vergroot"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -603,15 +616,23 @@ export default function ConfiguratorPage() {
                       ))}
                     </select>
                     {state.fineer_tegen && (
-                      <div className="mt-2 flex items-center gap-2">
+                      <div className="mt-3 relative group w-fit">
                         {state.fineer_tegen.gallery_foto_url ? (
-                          <img src={state.fineer_tegen.gallery_foto_url} alt={state.fineer_tegen.naam} className="w-10 h-10 rounded border border-gray-200 object-cover shrink-0" />
+                          <img src={state.fineer_tegen.gallery_foto_url} alt={state.fineer_tegen.naam} className="w-32 h-32 rounded-lg border border-gray-200 object-cover" />
                         ) : (
-                          <div className="w-10 h-10 rounded border border-gray-200 shrink-0" style={{ backgroundColor: WOOD_COLORS[state.fineer_tegen.naam] ?? '#D4B896' }} />
+                          <div className="w-32 h-32 rounded-lg border border-gray-200" style={{ backgroundColor: WOOD_COLORS[state.fineer_tegen.naam] ?? '#D4B896' }} />
                         )}
-                        <span className="text-xs text-gray-500">
-                          {isLang ? `€ ${state.fineer_tegen.prijs_tegenzijde_lang.toFixed(2)}/m² (lang)` : `€ ${state.fineer_tegen.prijs_tegenzijde_kort.toFixed(2)}/m² (kort)`}
-                        </span>
+                        {state.fineer_tegen.gallery_foto_url && (
+                          <button
+                            onClick={() => setFotoZoom({ url: state.fineer_tegen!.gallery_foto_url!, naam: state.fineer_tegen!.naam })}
+                            className="absolute top-1.5 right-1.5 bg-white/80 hover:bg-white rounded-full p-1 shadow transition-opacity opacity-0 group-hover:opacity-100"
+                            title="Vergroot"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -684,6 +705,10 @@ export default function ConfiguratorPage() {
                       />
                     </div>
                   )}
+                  <div className="mt-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800">
+                    <p className="font-semibold mb-0.5">Let op: foto ter indicatie</p>
+                    <p>De foto op de webshop is ter indicatie. Elke boom is anders, dus het eindresultaat kan afwijken. Mocht u willen weten welke stam Kuiper gebruikt, vraag dan om een foto met de keuze hieronder.</p>
+                  </div>
                 </div>
               </>
             )}
@@ -1101,6 +1126,17 @@ export default function ConfiguratorPage() {
         )}
       </div>
     </div>
+
+    {/* ─── Foto zoom modal ─── */}
+    {fotoZoom && (
+      <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setFotoZoom(null)}>
+        <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
+          <img src={fotoZoom.url} alt={fotoZoom.naam} className="w-full rounded-2xl object-contain max-h-[80vh]" />
+          <div className="absolute bottom-3 left-3 bg-black/50 text-white text-sm px-3 py-1 rounded-full">{fotoZoom.naam}</div>
+          <button onClick={() => setFotoZoom(null)} className="absolute top-3 right-3 bg-black/50 hover:bg-black/70 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg leading-none">✕</button>
+        </div>
+      </div>
+    )}
   )
 }
 
