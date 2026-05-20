@@ -468,6 +468,12 @@ export default function ConfiguratorPage() {
                               <p className="text-2xl font-bold text-gray-800">{p.dikte_mm}<span className="text-base font-normal">mm</span></p>
                               <p className="text-xs text-gray-500 mt-0.5">{p.breedte_mm}×{p.lengte_mm}mm</p>
                             </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {langPlaaten.length > 0 && (
                     <div>
                       <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
                         Lang (&gt;2800mm)
