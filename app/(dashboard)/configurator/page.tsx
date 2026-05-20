@@ -518,9 +518,9 @@ export default function ConfiguratorPage() {
             <p className="text-sm text-gray-500 mb-6">Hoe wilt u de plaat afwerken?</p>
             <div className="grid grid-cols-3 gap-4">
               {([
-                { id: 'kaal', label: 'Kaal', icon: '🪵', beschrijving: 'Onbehandeld basismateriaal' },
-                { id: 'fineer', label: 'Fineer', icon: '🌿', beschrijving: 'Natuurlijk houtfineer' },
-                { id: 'hpl', label: 'HPL', icon: '🎨', beschrijving: 'High Pressure Laminate' },
+                { id: 'kaal',  label: 'Kaal',   beschrijving: 'Onbehandeld basismateriaal', swatch: '#D1D5DB' },
+                { id: 'fineer', label: 'Fineer', beschrijving: 'Natuurlijk houtfineer',      swatch: '#D4B896' },
+                { id: 'hpl',   label: 'HPL',    beschrijving: 'High Pressure Laminate',      swatch: '#F0EDE8' },
               ] as const).map(cat => (
                 <button
                   key={cat.id}
@@ -528,7 +528,7 @@ export default function ConfiguratorPage() {
                   className={`p-5 rounded-xl border-2 text-center transition-all hover:shadow-sm
                     ${state.categorie === cat.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                 >
-                  <div className="text-3xl mb-2">{cat.icon}</div>
+                  <div className="w-10 h-10 rounded-lg mx-auto mb-3 border border-gray-200" style={{ backgroundColor: cat.swatch }} />
                   <p className="font-semibold text-gray-800">{cat.label}</p>
                   <p className="text-xs text-gray-400 mt-1">{cat.beschrijving}</p>
                 </button>
