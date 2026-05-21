@@ -239,6 +239,8 @@ export default function ConfiguratorPage() {
         hpl_voor: state.hpl_voor?.id ?? null,
         hpl_tegen: state.hpl_tegen?.id ?? null,
         voegmethode: state.voegmethode ?? null,
+        fineerkeuze: state.fineerkeuze ?? null,
+        fineerkeuze_datum: state.fineerkeuze_datum ?? null,
         bewerkingen: (state.bewerkingen ?? []).map(b => b.id),
         ruimte_indeling: state.ruimte_indeling ?? 'geen',
         ruimtes: state.ruimtes ?? [],

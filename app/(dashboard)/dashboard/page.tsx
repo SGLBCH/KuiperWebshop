@@ -24,6 +24,8 @@ type OrderlijstRegel = {
   hpl_voor: string | null
   hpl_tegen: string | null
   voegmethode: string | null
+  fineerkeuze: string | null
+  fineerkeuze_datum: string | null
   bewerkingen: string[]
   ruimte_indeling: string
   aantal: number
@@ -52,6 +54,13 @@ type CatalogCache = {
   hotmeltCombs: HotmeltCombinatie[]
 }
 
+const FINEERKEUZE_LABELS: Record<string, string> = {
+  fabriek: 'Fabriek kiest',
+  foto_kuiper: 'Foto van Kuiper',
+  foto_klant: 'Foto van klant',
+  persoonlijk: 'Persoonlijk uitzoeken',
+}
+
 type Tab = 'shop' | 'orders' | 'orderlijst'
 
 function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
@@ -67,10 +76,10 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
   const [sending, setSending] = useState(false)
 
   const checkLabels = [
-    'Ik heb alle regels gecontroleerd op juistheid',
-    'Ik begrijp dat wijzigingen na verzending niet meer mogelijk zijn',
+    'Ik heb alle offerte regels gecontroleerd op juistheid',
+    'Ik begrijp dat wijzigingen tijdens het productieproces niet meer mogelijk zijn',
     'Ik ga akkoord met de leverings- en betalingsvoorwaarden',
-    'Ik bevestig dat de bestelling namens mijn bedrijf wordt geplaatst',
+    'Ik bevestig dat deze offerte en mogelijke bestelling namens mijn bedrijf wordt geplaatst',
   ]
 
   function toggleCheck(i: number) {
@@ -126,11 +135,11 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
   }
 
   return (
-    <Modal open={open} onClose={handleClose} title={`Verstuur: ${naam}`} maxWidth="md">
+    <Modal open={open} onClose={handleClose} title={`Offerte aanvragen: ${naam}`} maxWidth="md">
       {modalStep === 0 && (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Voeg een optioneel bericht toe aan uw aanvraag.
+            U staat op het punt een <strong>offerte aanvraag</strong> te versturen naar Kuiper Holland. Voeg eventueel een bericht toe.
           </p>
           <textarea
             value={bericht}
@@ -155,7 +164,7 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
 
       {modalStep === 1 && (
         <div className="space-y-4">
-          <p className="text-sm font-medium text-gray-700">Bevestig de volgende punten om te versturen:</p>
+          <p className="text-sm font-medium text-gray-700">Bevestig de volgende punten om uw offerte aanvraag te versturen:</p>
           <div className="space-y-3">
             {checkLabels.map((label, i) => (
               <label key={i} className="flex items-start gap-3 cursor-pointer group">
@@ -187,9 +196,9 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
       {modalStep === 2 && (
         <div className="text-center py-6">
           <div className="text-4xl mb-3">✅</div>
-          <h3 className="text-lg font-bold text-gray-800 mb-2">Aanvraag verstuurd!</h3>
+          <h3 className="text-lg font-bold text-gray-800 mb-2">Offerte aanvraag verstuurd!</h3>
           <p className="text-sm text-gray-600 mb-4">
-            Uw orderlijst <strong>{naam}</strong> is succesvol verstuurd. U ontvangt een bevestiging per e-mail.
+            Uw offerte aanvraag voor <strong>{naam}</strong> is succesvol verstuurd. Kuiper Holland neemt zo snel mogelijk contact met u op.
           </p>
           <button
             onClick={handleClose}
@@ -455,7 +464,11 @@ export default function DashboardPage() {
 
     const [regelRes, catalog] = await Promise.all([
       supabase.from('orderlijst_regels').select(`
-        *,
+        id, basisplaat_id, categorie,
+        fineer_voor, fineer_tegen, hpl_voor, hpl_tegen,
+        voegmethode, fineerkeuze, fineerkeuze_datum,
+        bewerkingen, ruimte_indeling, ruimtes,
+        aantal, prijs_per_stuk, totaal_prijs,
         baseplaten ( naam, dikte_mm ),
         fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
         fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam, gallery_foto_url ),
@@ -1040,19 +1053,22 @@ export default function DashboardPage() {
                     const plaatDikte = (regel.baseplaten as { naam: string; dikte_mm: number } | null)?.dikte_mm ?? '—'
                     const fotoUrl = (regel.fineers_voor as { gallery_foto_url?: string | null } | null)?.gallery_foto_url
                       ?? (regel.hpl_voor_data as { gallery_foto_url?: string | null } | null)?.gallery_foto_url
-                    const afwerkingLabel = regel.categorie === 'fineer'
-                      ? `Fineer: ${(regel.fineers_voor as { naam: string } | null)?.naam ?? '—'} / ${(regel.fineers_tegen as { naam: string } | null)?.naam ?? '—'}`
-                      : regel.categorie === 'hpl'
-                      ? `HPL: ${(regel.hpl_voor_data as { kleur: string } | null)?.kleur ?? '—'} / ${(regel.hpl_tegen_data as { kleur: string } | null)?.kleur ?? '—'}`
-                      : 'Kaal'
+                    const fineerVoorNaam = (regel.fineers_voor as { naam: string } | null)?.naam
+                    const fineerTegenNaam = (regel.fineers_tegen as { naam: string } | null)?.naam
+                    const hplVoorKleur = (regel.hpl_voor_data as { kleur: string } | null)?.kleur
+                    const hplTegenKleur = (regel.hpl_tegen_data as { kleur: string } | null)?.kleur
+                    const bewerkingNamen = (regel.bewerkingen ?? [])
+                      .map(id => viewModal.catalog?.bewerkingen.find(b => b.id === id)?.naam ?? id)
+                      .join(', ')
+                    const fineerkeuzeLabel = regel.fineerkeuze ? (FINEERKEUZE_LABELS[regel.fineerkeuze] ?? regel.fineerkeuze) : null
                     return (
                       <div key={regel.id} className="bg-gray-50 rounded-xl border border-gray-200 p-4">
                         <div className="flex items-start justify-between gap-4 relative">
                           {fotoUrl && (
                             <img src={fotoUrl} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 shrink-0" />
                           )}
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                               <span className="font-semibold text-sm text-gray-800">#{i + 1} — {plaatNaam} {plaatDikte}mm</span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium
                                 ${regel.categorie === 'fineer' ? 'bg-amber-100 text-amber-700'
@@ -1061,12 +1077,56 @@ export default function DashboardPage() {
                                 {regel.categorie}
                               </span>
                             </div>
-                            <p className="text-xs text-gray-500">{afwerkingLabel}</p>
-                            {regel.voegmethode && (
-                              <p className="text-xs text-gray-400 mt-0.5">Voeg: {regel.voegmethode}</p>
+
+                            {/* Fineer details */}
+                            {regel.categorie === 'fineer' && (
+                              <div className="space-y-0.5">
+                                <p className="text-xs text-gray-600">
+                                  <span className="font-medium">Voorzijde:</span> {fineerVoorNaam ?? '—'}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  <span className="font-medium">Tegenzijde:</span> {fineerTegenNaam ?? '—'}
+                                </p>
+                                {regel.voegmethode && (
+                                  <p className="text-xs text-gray-500">
+                                    <span className="font-medium">Voeg:</span> {regel.voegmethode}
+                                  </p>
+                                )}
+                                {fineerkeuzeLabel && (
+                                  <p className="text-xs text-gray-500">
+                                    <span className="font-medium">Fineerkeuze:</span> {fineerkeuzeLabel}
+                                    {regel.fineerkeuze === 'persoonlijk' && regel.fineerkeuze_datum && (
+                                      <span className="ml-1 text-blue-600 font-medium">
+                                        — {new Date(regel.fineerkeuze_datum).toLocaleDateString('nl-NL')}
+                                      </span>
+                                    )}
+                                  </p>
+                                )}
+                              </div>
                             )}
-                            {regel.bewerkingen?.length > 0 && (
-                              <p className="text-xs text-gray-400 mt-0.5">Bewerkingen: {regel.bewerkingen.join(', ')}</p>
+
+                            {/* HPL details */}
+                            {regel.categorie === 'hpl' && (
+                              <div className="space-y-0.5">
+                                <p className="text-xs text-gray-600">
+                                  <span className="font-medium">Voorzijde:</span> {hplVoorKleur ?? '—'}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  <span className="font-medium">Tegenzijde:</span> {hplTegenKleur ?? '—'}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Kaal */}
+                            {regel.categorie === 'kaal' && (
+                              <p className="text-xs text-gray-500">Geen afwerking</p>
+                            )}
+
+                            {/* Bewerkingen */}
+                            {bewerkingNamen && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                <span className="font-medium">Bewerkingen:</span> {bewerkingNamen}
+                              </p>
                             )}
                             <button
                               onClick={() => setViewModal(v => ({ ...v, deleteConfirm: { regelId: regel.id, label: `#${i + 1} — ${plaatNaam} ${plaatDikte}mm` } }))}
