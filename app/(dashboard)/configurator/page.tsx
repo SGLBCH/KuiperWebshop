@@ -439,8 +439,8 @@ export default function ConfiguratorPage() {
                 <div className="space-y-6">
                   {kortPlaaten.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                        Kort (≤2800mm)
+                      <h3 className="text-base font-semibold text-gray-900 mb-3">
+                        Korte platen (≤2800mm)
                       </h3>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {kortPlaaten.map(p => {
@@ -477,8 +477,8 @@ export default function ConfiguratorPage() {
                   )}
                   {langPlaaten.length > 0 && (
                     <div>
-                      <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                        Lang (&gt;2800mm)
+                      <h3 className="text-base font-semibold text-gray-900 mb-3">
+                        Lange platen (&gt;2800mm)
                       </h3>
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         {langPlaaten.map(p => {
