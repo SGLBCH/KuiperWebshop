@@ -314,6 +314,7 @@ export default function ConfiguratorPage() {
   const isLang = state.afmeting ? state.afmeting.lengte_mm > 2800 : false
 
   return (
+    <>
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Stepper */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 overflow-x-auto">
@@ -1137,6 +1138,7 @@ export default function ConfiguratorPage() {
         </div>
       </div>
     )}
+    </>
   )
 }
 
