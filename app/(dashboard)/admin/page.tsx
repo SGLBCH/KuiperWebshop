@@ -1076,7 +1076,7 @@ export default function AdminPage() {
   }
 
   function openBwEdit(b: Bewerking) {
-    setBwModal({ open: true, item: b, form: { naam: b.naam, beschrijving: b.beschrijving, prijs: b.prijs, compatibiliteit: [...b.compatibiliteit], beschikbaar: b.beschikbaar, standaard_geselecteerd: b.standaard_geselecteerd ?? false, volgorde: b.volgorde } })
+    setBwModal({ open: true, item: b, form: { naam: b.naam, beschrijving: b.beschrijving, prijs: b.prijs, prijs_type: b.prijs_type ?? 'per_m2', compatibiliteit: [...b.compatibiliteit], beschikbaar: b.beschikbaar, standaard_geselecteerd: b.standaard_geselecteerd ?? false, volgorde: b.volgorde } })
   }
 
   async function saveBw() {
