@@ -1045,7 +1045,21 @@ export default function ConfiguratorPage() {
                   </>
                 )}
                 <SummaryRow label="Bewerkingen" value={state.bewerkingen.length > 0 ? state.bewerkingen.map(b => b.naam).join(', ') : 'Geen'} />
-                <SummaryRow label="Aantal" value={`${state.aantal} platen`} />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Aantal</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setState(s => ({ ...s, aantal: Math.max(1, s.aantal - 1) }))}
+                      className="w-7 h-7 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold flex items-center justify-center"
+                    >−</button>
+                    <span className="w-10 text-center font-semibold text-gray-800">{state.aantal}</span>
+                    <button
+                      onClick={() => setState(s => ({ ...s, aantal: s.aantal + 1 }))}
+                      className="w-7 h-7 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 font-bold flex items-center justify-center"
+                    >+</button>
+                    <span className="text-gray-500">platen</span>
+                  </div>
+                </div>
                 <SummaryRow label="Totaal m²" value={`${priceResult.totaal_m2.toFixed(2)} m²`} />
               </div>
 
