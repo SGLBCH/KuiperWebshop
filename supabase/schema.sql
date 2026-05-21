@@ -87,6 +87,7 @@ CREATE TABLE IF NOT EXISTS public.bewerkingen (
   naam             TEXT NOT NULL,
   beschrijving     TEXT NOT NULL DEFAULT '',
   prijs            NUMERIC(10,2) NOT NULL DEFAULT 0,
+  prijs_type       TEXT NOT NULL DEFAULT 'per_m2' CHECK (prijs_type IN ('per_m2', 'per_order')),
   compatibiliteit  TEXT[] NOT NULL DEFAULT '{kaal,fineer,hpl}',
   beschikbaar      BOOLEAN NOT NULL DEFAULT TRUE,
   volgorde         INTEGER NOT NULL DEFAULT 0

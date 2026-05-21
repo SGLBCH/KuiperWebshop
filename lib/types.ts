@@ -64,6 +64,7 @@ export interface Bewerking {
   naam: string
   beschrijving: string
   prijs: number
+  prijs_type: 'per_m2' | 'per_order'
   compatibiliteit: ('kaal' | 'fineer' | 'hpl')[]
   beschikbaar: boolean
   standaard_geselecteerd: boolean
@@ -212,6 +213,7 @@ export interface PriceResult {
   fineer_kosten: number
   hpl_kosten: number
   bewerkingen_kosten: number
+  vaste_toeslagen_kosten: number
   subtotaal: number
   staffel_multiplier: number
   staffel_korting: number

@@ -86,19 +86,22 @@ export function calculatePrice(
   const prijs_per_plaat_basis = verkoop_basis_per_m2 * m2_per_plaat
   const prijs_per_plaat_staffel = verkoop_per_m2 * m2_per_plaat
 
-  // ── Bewerkingen (fixed selling price per m², not through margin) ──
-  const bewerkingen_per_m2 = (bewerkingen ?? []).reduce((sum, b) => sum + (b.prijs ?? 0), 0)
-  const bewerkingen_per_plaat = bewerkingen_per_m2 * m2_per_plaat
+  // ── Bewerkingen: per_m2 (door marge) vs per_order (vast bedrag) ──
+  const bw_per_m2 = (bewerkingen ?? []).filter(b => (b.prijs_type ?? 'per_m2') === 'per_m2')
+  const bw_per_order = (bewerkingen ?? []).filter(b => b.prijs_type === 'per_order')
+  const bewerkingen_per_m2_som = bw_per_m2.reduce((sum, b) => sum + (b.prijs ?? 0), 0)
+  const bewerkingen_per_plaat = bewerkingen_per_m2_som * m2_per_plaat
   const bewerkingen_kosten = bewerkingen_per_plaat * aantal
+  const vaste_toeslagen_kosten = bw_per_order.reduce((sum, b) => sum + (b.prijs ?? 0), 0)
 
   // ── Subtotalen ──
   const materiaal_basis = prijs_per_plaat_basis * aantal
   const materiaal_staffel = prijs_per_plaat_staffel * aantal
   const staffel_korting = materiaal_basis - materiaal_staffel
 
-  // Display subtotaal = at base rate + bewerkingen
-  const subtotaal = materiaal_basis + bewerkingen_kosten
-  const subtotaal_na_staffel = materiaal_staffel + bewerkingen_kosten
+  // Vaste toeslagen vallen buiten staffelkorting
+  const subtotaal = materiaal_basis + bewerkingen_kosten + vaste_toeslagen_kosten
+  const subtotaal_na_staffel = materiaal_staffel + bewerkingen_kosten + vaste_toeslagen_kosten
 
   // staffel_multiplier for display percentage: base / actual
   const staffel_multiplier = base_marge_coefficient > 0
@@ -129,6 +132,7 @@ export function calculatePrice(
     fineer_kosten: round5(fineer_kosten),
     hpl_kosten: round5(hpl_kosten),
     bewerkingen_kosten: round5(bewerkingen_kosten),
+    vaste_toeslagen_kosten: round5(vaste_toeslagen_kosten),
     subtotaal: round5(subtotaal),
     staffel_multiplier: round5(staffel_multiplier),
     staffel_korting: round5(staffel_korting),
@@ -143,8 +147,8 @@ export function calculatePrice(
 function emptyResult(): PriceResult {
   return {
     basisplaat_kosten: 0, fineer_kosten: 0, hpl_kosten: 0,
-    bewerkingen_kosten: 0, subtotaal: 0, staffel_multiplier: 1,
-    staffel_korting: 0, subtotaal_na_staffel: 0,
+    bewerkingen_kosten: 0, vaste_toeslagen_kosten: 0, subtotaal: 0,
+    staffel_multiplier: 1, staffel_korting: 0, subtotaal_na_staffel: 0,
     verzending: 0, totaal: 0, m2_per_plaat: 0, totaal_m2: 0,
   }
 }

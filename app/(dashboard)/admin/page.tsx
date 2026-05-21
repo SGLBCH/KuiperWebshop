@@ -908,7 +908,7 @@ export default function AdminPage() {
   // Insluiting modal state
   const emptyInsForm = { subject_type: 'basisplaat', subject_id: '', ingesloten_type: 'bewerking', ingesloten_id: '', reden: '' }
   const [insModal, setInsModal] = useState<{ open: boolean; form: typeof emptyInsForm }>({ open: false, form: emptyInsForm })
-  const emptyBw = { naam: '', beschrijving: '', prijs: 0, compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, standaard_geselecteerd: false, volgorde: 0 }
+  const emptyBw = { naam: '', beschrijving: '', prijs: 0, prijs_type: 'per_m2' as 'per_m2' | 'per_order', compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, standaard_geselecteerd: false, volgorde: 0 }
   const [bwModal, setBwModal] = useState<{ open: boolean; item: Bewerking | null; form: typeof emptyBw }>({ open: false, item: null, form: emptyBw })
 
   // Aanvragen sub-tab
@@ -1087,11 +1087,11 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       if (item) {
-        const { error } = await supabase.from('bewerkingen').update({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).eq('id', item.id)
+        const { error } = await supabase.from('bewerkingen').update({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, prijs_type: form.prijs_type, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).eq('id', item.id)
         if (error) { toast.error('Opslaan mislukt: ' + error.message, { id: toastId }); return }
         setBewerkingen(b => b.map(x => x.id === item.id ? { ...x, ...form } as Bewerking : x))
       } else {
-        const { data, error } = await supabase.from('bewerkingen').insert({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).select().single()
+        const { data, error } = await supabase.from('bewerkingen').insert({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, prijs_type: form.prijs_type, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).select().single()
         if (error) { toast.error('Toevoegen mislukt: ' + error.message, { id: toastId }); return }
         setBewerkingen(b => [...b, data as Bewerking])
       }
@@ -2576,9 +2576,20 @@ export default function AdminPage() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Prijstype</label>
+                    <select value={bwModal.form.prijs_type} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, prijs_type: e.target.value as 'per_m2' | 'per_order' } }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                      <option value="per_m2">Per m² (× oppervlak × aantal)</option>
+                      <option value="per_order">Vast per order (eenmalig vast bedrag)</option>
+                    </select>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Prijs (€/m²)</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        Prijs {bwModal.form.prijs_type === 'per_order' ? '(€ vast per order)' : '(€/m²)'}
+                      </label>
                       <input type="number" step="0.01" value={bwModal.form.prijs} onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, prijs: parseFloat(e.target.value) || 0 } }))}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>

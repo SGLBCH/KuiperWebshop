@@ -839,7 +839,9 @@ export default function ConfiguratorPage() {
                           <p className="text-xs text-gray-500 mt-0.5">{b.beschrijving}</p>
                         </div>
                         <div className="shrink-0 ml-2">
-                          <span className="text-sm font-bold text-blue-600">+ € {b.prijs.toFixed(2)}/m²</span>
+                          <span className="text-sm font-bold text-blue-600">
+                            + € {b.prijs.toFixed(2)}{(b.prijs_type ?? 'per_m2') === 'per_order' ? '/order' : '/m²'}
+                          </span>
                         </div>
                       </div>
                       {isSelected && (
@@ -1071,6 +1073,7 @@ export default function ConfiguratorPage() {
                   {priceResult.fineer_kosten > 0 && <PriceRow label="Fineer" value={priceResult.fineer_kosten} />}
                   {priceResult.hpl_kosten > 0 && <PriceRow label="HPL" value={priceResult.hpl_kosten} />}
                   {priceResult.bewerkingen_kosten > 0 && <PriceRow label="Bewerkingen" value={priceResult.bewerkingen_kosten} />}
+                  {priceResult.vaste_toeslagen_kosten > 0 && <PriceRow label="Vaste toeslagen" value={priceResult.vaste_toeslagen_kosten} />}
                   <div className="border-t border-gray-200 pt-2">
                     <PriceRow label="Subtotaal" value={priceResult.subtotaal} bold />
                   </div>
