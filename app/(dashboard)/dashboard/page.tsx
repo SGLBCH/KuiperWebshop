@@ -6,14 +6,12 @@ import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import {
-  seedBaseplaten,
   seedOrderlijsten,
-  seedOrders,
   seedVasteKosten,
   seedStaffelFineerHPL,
   seedStaffelKaal,
 } from '@/lib/seed-data'
-import type { Orderlijst, Order, Baseplaat, Fineer, HPL, Bewerking, StaffelRegel, PricingData, HotmeltCombinatie } from '@/lib/types'
+import type { Orderlijst, Baseplaat, Fineer, HPL, Bewerking, StaffelRegel, PricingData, HotmeltCombinatie } from '@/lib/types'
 import { calculatePrice, getMargeCoefficient } from '@/lib/pricing'
 import toast from 'react-hot-toast'
 
@@ -55,38 +53,6 @@ type CatalogCache = {
 }
 
 type Tab = 'shop' | 'orders' | 'orderlijst'
-type OrderStatus = 'alle' | 'bevestigd' | 'in_productie' | 'verzonden' | 'geleverd'
-
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  bevestigd: 'Bevestigd',
-  in_productie: 'In productie',
-  verzonden: 'Verzonden',
-  geleverd: 'Geleverd',
-  geannuleerd: 'Geannuleerd',
-}
-
-const ORDER_STATUS_STEPS = ['Bevestigd', 'In productie', 'Ingepakt', 'Verzonden', 'Geleverd']
-
-function getOrderStep(status: string): number {
-  switch (status) {
-    case 'bevestigd': return 0
-    case 'in_productie': return 1
-    case 'verzonden': return 3
-    case 'geleverd': return 4
-    default: return 0
-  }
-}
-
-function getStatusBadgeVariant(status: string): 'info' | 'warning' | 'active' | 'inactive' | 'approved' | 'danger' | 'pending' | 'verstuurd' | 'concept' | 'gearchiveerd' {
-  switch (status) {
-    case 'bevestigd': return 'info'
-    case 'in_productie': return 'warning'
-    case 'verzonden': return 'verstuurd'
-    case 'geleverd': return 'approved'
-    case 'geannuleerd': return 'danger'
-    default: return 'inactive'
-  }
-}
 
 function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
   open: boolean
@@ -282,9 +248,7 @@ function NewOrderlijstModal({ open, onClose, onCreate }: { open: boolean; onClos
 export default function DashboardPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('shop')
-  const [orderFilter, setOrderFilter] = useState<OrderStatus>('alle')
   const [orderlijsten, setOrderlijsten] = useState<Orderlijst[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
   const [selectedLists, setSelectedLists] = useState<string[]>([])
   const [combining, setCombining] = useState(false)
   const [sendModal, setSendModal] = useState<{ open: boolean; naam: string; id?: string }>({ open: false, naam: '' })
@@ -315,7 +279,6 @@ export default function DashboardPage() {
       const supabase = await getSupabase()
       if (!supabase) {
         setOrderlijsten(seedOrderlijsten)
-        setOrders(seedOrders)
         return
       }
       const { data: { user } } = await supabase.auth.getUser()
@@ -327,14 +290,6 @@ export default function DashboardPage() {
         .eq('user_id', user.id)
         .order('bijgewerkt_op', { ascending: false })
       if (lijsten) setOrderlijsten(lijsten)
-
-      const { data: ords } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('bevestigd_op', { ascending: false })
-      if (ords) setOrders(ords)
-      else setOrders(seedOrders)
     }
     load()
   }, [getSupabase])
@@ -668,10 +623,6 @@ export default function DashboardPage() {
     )
   }
 
-  const filteredOrders = orders.filter(o =>
-    orderFilter === 'alle' || o.status === orderFilter
-  )
-
   const actueleListjes = orderlijsten.filter(l => l.status === 'actueel' || l.status === 'concept')
   const verstuurdListjes = orderlijsten.filter(l => l.status === 'verstuurd' || l.status === 'gearchiveerd')
 
@@ -827,82 +778,51 @@ export default function DashboardPage() {
 
           {/* ORDERS TAB */}
           {activeTab === 'orders' && (
-            <div>
-              <h1 className="text-lg font-bold text-gray-800 mb-4">Mijn orders</h1>
+            <div className="space-y-5">
+              <h1 className="text-lg font-bold text-gray-800">Ordergeschiedenis</h1>
 
-              {/* Filter */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {(['alle', 'bevestigd', 'in_productie', 'verzonden', 'geleverd'] as OrderStatus[]).map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setOrderFilter(s)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors
-                      ${orderFilter === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-                  >
-                    {s === 'alle' ? 'Alle' : ORDER_STATUS_LABELS[s]}
-                  </button>
-                ))}
-              </div>
+              {verstuurdListjes.length === 0 && actueleListjes.length === 0 && (
+                <div className="text-center py-12 text-gray-400 bg-white rounded-xl border border-gray-200">
+                  <p className="text-3xl mb-2">📦</p>
+                  <p className="text-sm">Nog geen orderlijsten aangemaakt.</p>
+                </div>
+              )}
 
-              <div className="space-y-3">
-                {filteredOrders.map(order => {
-                  const step = getOrderStep(order.status)
-                  return (
-                    <div key={order.id} className="bg-white rounded-xl border border-gray-200 p-4">
-                      <div className="flex items-start justify-between gap-4 mb-3">
+              {verstuurdListjes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Verstuurd</p>
+                  <div className="space-y-2">
+                    {verstuurdListjes.map(lijst => (
+                      <div key={lijst.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200">
                         <div>
-                          <p className="font-semibold text-gray-800">{order.ordernummer}</p>
-                          <p className="text-sm text-gray-500">Bevestigd: {new Date(order.bevestigd_op).toLocaleDateString('nl-NL')}</p>
-                          {order.verwachte_levering && (
-                            <p className="text-xs text-gray-400">Verwachte levering: {order.verwachte_levering}</p>
-                          )}
+                          <p className="text-sm font-medium text-gray-800">{lijst.naam}</p>
+                          <p className="text-xs text-gray-400">{new Date(lijst.bijgewerkt_op).toLocaleDateString('nl-NL')}</p>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-lg font-bold text-gray-900">€ {order.totaal.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</p>
-                          <Badge variant={getStatusBadgeVariant(order.status)}>
-                            {ORDER_STATUS_LABELS[order.status] ?? order.status}
-                          </Badge>
-                        </div>
+                        <Badge variant="verstuurd">Verstuurd</Badge>
                       </div>
-
-                      {/* Progress bar */}
-                      <div className="mb-3">
-                        <div className="flex items-center gap-1">
-                          {ORDER_STATUS_STEPS.map((label, i) => (
-                            <div key={i} className="flex items-center flex-1">
-                              <div
-                                className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-blue-500' : 'bg-gray-200'}`}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="flex justify-between mt-1">
-                          {ORDER_STATUS_STEPS.map((label, i) => (
-                            <span key={i} className={`text-xs ${i === step ? 'text-blue-600 font-medium' : 'text-gray-300'}`} style={{ fontSize: '10px' }}>
-                              {label}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {order.track_trace && (
-                        <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
-                          <span className="text-xs text-blue-700">📦 Track & trace: {order.track_trace}</span>
-                          <button className="text-xs text-blue-600 font-medium hover:underline">
-                            Volgen →
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-                {filteredOrders.length === 0 && (
-                  <div className="text-center py-12 text-gray-400 bg-white rounded-xl border border-gray-200">
-                    <p className="text-4xl mb-2">📦</p>
-                    <p className="text-sm">Geen orders gevonden voor dit filter.</p>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {actueleListjes.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Actieve lijsten</p>
+                  <div className="space-y-2">
+                    {actueleListjes.map(lijst => (
+                      <div key={lijst.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200">
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">{lijst.naam}</p>
+                          <p className="text-xs text-gray-400">{new Date(lijst.bijgewerkt_op).toLocaleDateString('nl-NL')}</p>
+                        </div>
+                        <Badge variant={lijst.status === 'actueel' ? 'active' : 'concept'}>
+                          {lijst.status === 'actueel' ? 'Actueel' : 'Concept'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

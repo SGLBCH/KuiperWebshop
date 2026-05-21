@@ -2,10 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
-import { Badge } from '@/components/ui/Badge'
-import type { Orderlijst } from '@/lib/types'
-
-type ProfileTab = 'persoonlijk' | 'bedrijf' | 'email' | 'beveiliging' | 'geschiedenis'
+type ProfileTab = 'persoonlijk' | 'bedrijf' | 'email' | 'beveiliging'
 
 type Profile = {
   id: string
@@ -39,7 +36,6 @@ const TABS: { id: ProfileTab; label: string }[] = [
   { id: 'bedrijf', label: 'Bedrijf' },
   { id: 'email', label: 'E-mailinstellingen' },
   { id: 'beveiliging', label: 'Beveiliging' },
-  { id: 'geschiedenis', label: 'Ordergeschiedenis' },
 ]
 
 export default function ProfilePage() {
@@ -47,7 +43,6 @@ export default function ProfilePage() {
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [demoMode, setDemoMode] = useState(false)
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE)
-  const [orderlijsten, setOrderlijsten] = useState<Orderlijst[]>([])
 
   // Persoonlijk edit state
   const [editingPersonal, setEditingPersonal] = useState(false)
@@ -110,16 +105,10 @@ export default function ProfilePage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoadingProfile(false); return }
 
-      const [profileRes, lijstenRes] = await Promise.all([
-        supabase.from('profiles')
-          .select('id, email, naam, bedrijf, branche, adres, kvk, telefoon, order_confirm_email, order_confirm_email_cc, rol, status')
-          .eq('id', user.id)
-          .single(),
-        supabase.from('orderlijsten')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('bijgewerkt_op', { ascending: false }),
-      ])
+      const profileRes = await supabase.from('profiles')
+        .select('id, email, naam, bedrijf, branche, adres, kvk, telefoon, order_confirm_email, order_confirm_email_cc, rol, status')
+        .eq('id', user.id)
+        .single()
 
       if (profileRes.data) {
         applyProfile({
@@ -132,7 +121,6 @@ export default function ProfilePage() {
         applyProfile({ ...EMPTY_PROFILE, id: user.id, email: user.email ?? '' })
       }
 
-      if (lijstenRes.data) setOrderlijsten(lijstenRes.data)
       setLoadingProfile(false)
     }
     load()
@@ -235,9 +223,6 @@ export default function ProfilePage() {
       </div>
     )
   }
-
-  const verstuurd = orderlijsten.filter(l => l.status === 'verstuurd' || l.status === 'gearchiveerd')
-  const actueel = orderlijsten.filter(l => l.status === 'actueel' || l.status === 'concept')
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -456,52 +441,6 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* ── GESCHIEDENIS ── */}
-        {activeTab === 'geschiedenis' && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">Ordergeschiedenis</h2>
-
-            {verstuurd.length === 0 && actueel.length === 0 && (
-              <p className="text-sm text-gray-400 py-6 text-center">Nog geen orderlijsten aangemaakt.</p>
-            )}
-
-            {verstuurd.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Verstuurd</p>
-                <div className="space-y-2">
-                  {verstuurd.map(lijst => (
-                    <div key={lijst.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{lijst.naam}</p>
-                        <p className="text-xs text-gray-400">{new Date(lijst.bijgewerkt_op).toLocaleDateString('nl-NL')}</p>
-                      </div>
-                      <Badge variant="verstuurd">Verstuurd</Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {actueel.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Actieve lijsten</p>
-                <div className="space-y-2">
-                  {actueel.map(lijst => (
-                    <div key={lijst.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-200">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">{lijst.naam}</p>
-                        <p className="text-xs text-gray-400">{new Date(lijst.bijgewerkt_op).toLocaleDateString('nl-NL')}</p>
-                      </div>
-                      <Badge variant={lijst.status === 'actueel' ? 'active' : 'concept'}>
-                        {lijst.status === 'actueel' ? 'Actueel' : 'Concept'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
