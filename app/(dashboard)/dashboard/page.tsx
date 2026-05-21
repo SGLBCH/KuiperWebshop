@@ -478,7 +478,7 @@ export default function DashboardPage() {
       loadCatalog(supabase),
     ])
 
-    setViewModal(v => ({ ...v, regels: regelRes.data ?? [], catalog, loading: false }))
+    setViewModal(v => ({ ...v, regels: (regelRes.data ?? []) as OrderlijstRegel[], catalog, loading: false }))
   }
 
   async function combineer() {
