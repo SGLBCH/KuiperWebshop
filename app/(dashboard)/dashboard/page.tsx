@@ -266,13 +266,14 @@ export default function DashboardPage() {
     open: boolean
     lijst: Orderlijst | null
     regels: OrderlijstRegel[]
+    siblingRegels: OrderlijstRegel[]
     loading: boolean
     catalog: CatalogCache | null
     hasChanges: boolean
     saving: boolean
     deleteConfirm: { regelId: string; label: string } | null
   }>({
-    open: false, lijst: null, regels: [], loading: false,
+    open: false, lijst: null, regels: [], siblingRegels: [], loading: false,
     catalog: null, hasChanges: false, saving: false, deleteConfirm: null,
   })
 
@@ -458,7 +459,7 @@ export default function DashboardPage() {
   }
 
   async function openBekijk(lijst: Orderlijst) {
-    setViewModal({ open: true, lijst, regels: [], loading: true, catalog: null, hasChanges: false, saving: false, deleteConfirm: null })
+    setViewModal({ open: true, lijst, regels: [], siblingRegels: [], loading: true, catalog: null, hasChanges: false, saving: false, deleteConfirm: null })
     const supabase = await getSupabase()
     if (!supabase) { setViewModal(v => ({ ...v, loading: false })); return }
 
@@ -478,36 +479,41 @@ export default function DashboardPage() {
       loadCatalog(supabase),
     ])
 
-    setViewModal(v => ({ ...v, regels: (regelRes.data ?? []) as unknown as OrderlijstRegel[], catalog, loading: false }))
+    const eigenRegels = (regelRes.data ?? []) as unknown as OrderlijstRegel[]
+    let displayRegels = eigenRegels
+    let siblingRegels: OrderlijstRegel[] = []
+
+    // Live herberekening met gecombineerde staffel
+    if (lijst.combinatie_groep_id) {
+      const zusterLijsten = orderlijsten.filter(
+        l => l.combinatie_groep_id === lijst.combinatie_groep_id && l.id !== lijst.id
+      )
+      if (zusterLijsten.length > 0) {
+        const zusterRes = await Promise.all(
+          zusterLijsten.map(l =>
+            supabase.from('orderlijst_regels')
+              .select('id, basisplaat_id, categorie, fineer_voor, fineer_tegen, hpl_voor, hpl_tegen, bewerkingen, ruimte_indeling, aantal, prijs_per_stuk, totaal_prijs')
+              .eq('orderlijst_id', l.id)
+          )
+        )
+        siblingRegels = zusterRes.flatMap(r => (r.data ?? []) as unknown as OrderlijstRegel[])
+        const herberekend = herbereken([...eigenRegels, ...siblingRegels], catalog)
+        const eigenIds = new Set(eigenRegels.map(r => r.id))
+        displayRegels = herberekend.filter(r => eigenIds.has(r.id))
+      }
+    }
+
+    setViewModal(v => ({ ...v, regels: displayRegels, siblingRegels, catalog, loading: false }))
   }
 
   async function combineer() {
     if (selectedLists.length < 2 || combining) return
     setCombining(true)
-    const toastId = toast.loading('Orderlijsten combineren…')
+    const toastId = toast.loading('Orderlijsten koppelen…')
     try {
       const supabase = await getSupabase()
       if (!supabase) { toast.error('Geen verbinding', { id: toastId }); return }
 
-      const [catalog, ...regelResultaten] = await Promise.all([
-        loadCatalog(supabase),
-        ...selectedLists.map(id =>
-          supabase.from('orderlijst_regels').select('*').eq('orderlijst_id', id)
-        ),
-      ])
-
-      // Alle regels samenvoegen voor gecombineerde staffelberekening
-      const alleRegels: OrderlijstRegel[] = regelResultaten.flatMap(r => r.data ?? [])
-      const herberekend = herbereken(alleRegels, catalog)
-
-      // Herberekende prijzen opslaan
-      await Promise.all(herberekend.map(r =>
-        supabase.from('orderlijst_regels')
-          .update({ prijs_per_stuk: r.prijs_per_stuk, totaal_prijs: r.totaal_prijs })
-          .eq('id', r.id)
-      ))
-
-      // Koppel alle geselecteerde lijsten aan dezelfde groep
       const groepId = crypto.randomUUID()
       await Promise.all(selectedLists.map(id =>
         supabase.from('orderlijsten').update({ combinatie_groep_id: groepId }).eq('id', id)
@@ -517,7 +523,7 @@ export default function DashboardPage() {
         selectedLists.includes(l.id) ? { ...l, combinatie_groep_id: groepId } : l
       ))
       setSelectedLists([])
-      toast.success('Gecombineerd — prijzen herberekend op gecombineerde staffel', { id: toastId })
+      toast.success('Gekoppeld — gecombineerde staffelkorting wordt live berekend bij "Bekijk"', { id: toastId })
     } catch (e) {
       toast.error('Combineren mislukt', { id: toastId })
       console.error(e)
@@ -538,23 +544,6 @@ export default function DashboardPage() {
       const supabase = await getSupabase()
       if (!supabase) { toast.error('Geen verbinding', { id: toastId }); return }
 
-      const catalog = await loadCatalog(supabase)
-
-      // Herbereken elke lijst afzonderlijk op zijn eigen staffel-niveau
-      for (const groepLijst of groepLijsten) {
-        const { data: regels } = await supabase
-          .from('orderlijst_regels').select('*').eq('orderlijst_id', groepLijst.id)
-        if (regels && regels.length > 0) {
-          const herberekend = herbereken(regels, catalog)
-          await Promise.all(herberekend.map(r =>
-            supabase.from('orderlijst_regels')
-              .update({ prijs_per_stuk: r.prijs_per_stuk, totaal_prijs: r.totaal_prijs })
-              .eq('id', r.id)
-          ))
-        }
-      }
-
-      // Verwijder de koppeling van alle lijsten in de groep
       await Promise.all(groepLijsten.map(l =>
         supabase.from('orderlijsten').update({ combinatie_groep_id: null }).eq('id', l.id)
       ))
@@ -562,7 +551,7 @@ export default function DashboardPage() {
       setOrderlijsten(lists => lists.map(l =>
         l.combinatie_groep_id === groepId ? { ...l, combinatie_groep_id: null } : l
       ))
-      toast.success('Losgekoppeld — prijzen herberekend per afzonderlijke lijst', { id: toastId })
+      toast.success('Losgekoppeld — staffelkorting wordt individueel berekend bij "Bekijk"', { id: toastId })
     } catch (e) {
       toast.error('Loskoppelen mislukt', { id: toastId })
       console.error(e)
@@ -610,8 +599,10 @@ export default function DashboardPage() {
       const newRegels = v.regels.map(r =>
         r.id === regelId ? { ...r, aantal: Math.max(1, r.aantal + delta) } : r
       )
-      const herberekend = v.catalog ? herbereken(newRegels, v.catalog) : newRegels
-      return { ...v, regels: herberekend, hasChanges: true }
+      if (!v.catalog) return { ...v, regels: newRegels, hasChanges: true }
+      const herberekend = herbereken([...newRegels, ...v.siblingRegels], v.catalog)
+      const eigenIds = new Set(newRegels.map(r => r.id))
+      return { ...v, regels: herberekend.filter(r => eigenIds.has(r.id)), hasChanges: true }
     })
   }
 
@@ -1026,7 +1017,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400 mt-0.5">Orderlijst overzicht</p>
               </div>
               <button
-                onClick={() => setViewModal(v => ({ ...v, open: false, lijst: null, regels: [], catalog: null, hasChanges: false }))}
+                onClick={() => setViewModal(v => ({ ...v, open: false, lijst: null, regels: [], siblingRegels: [], catalog: null, hasChanges: false }))}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
               >✕</button>
             </div>
