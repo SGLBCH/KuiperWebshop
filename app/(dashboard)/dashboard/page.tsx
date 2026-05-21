@@ -728,44 +728,99 @@ export default function DashboardPage() {
 
           {/* SHOP TAB */}
           {activeTab === 'shop' && (
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h1 className="text-lg font-bold text-gray-800">Productcatalogus</h1>
+            <div className="space-y-4">
+
+              {/* ── Rij 1: volle breedte — configurator uitleg ── */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white">
+                <h1 className="text-xl font-bold mb-1">Configureer uw platen op maat</h1>
+                <p className="text-blue-100 text-sm mb-4">
+                  Kies uw basisplaat, selecteer de voor- en tegenzijde in fineer of HPL, en bekijk direct uw prijs. Binnen een paar stappen een complete offerte.
+                </p>
+                <div className="flex flex-wrap gap-3 text-sm text-blue-100 mb-5">
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">1</span> Kies basisplaat</span>
+                  <span className="text-blue-300">→</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">2</span> Fineer of HPL</span>
+                  <span className="text-blue-300">→</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">3</span> Bewerkingen</span>
+                  <span className="text-blue-300">→</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">4</span> Bekijk uw prijs</span>
+                </div>
                 <Link
                   href="/configurator"
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                  className="inline-block px-5 py-2.5 bg-white text-blue-700 text-sm font-bold rounded-xl hover:bg-blue-50 transition-colors"
                 >
-                  + Nieuwe configuratie
+                  + Nieuwe configuratie starten
                 </Link>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {seedBaseplaten.map(plaat => (
-                  <div key={plaat.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                    {/* Image placeholder */}
-                    <div className="h-32 bg-gradient-to-br from-amber-50 to-amber-100 flex items-center justify-center">
-                      <span className="text-4xl">🪵</span>
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-semibold text-gray-800">{plaat.naam}</h3>
-                      <p className="text-sm text-gray-500 mt-0.5">{plaat.dikte_mm}mm — {plaat.breedte_mm}×{plaat.lengte_mm}mm</p>
-                      <div className="flex items-center justify-between mt-3">
-                        <div>
-                          <span className="text-lg font-bold text-gray-900">€ {plaat.prijs_per_m2.toFixed(2)}</span>
-                          <span className="text-xs text-gray-400 ml-1">/ m²</span>
+
+              {/* ── Rij 2: twee kolommen ── */}
+              <div className="grid sm:grid-cols-2 gap-4">
+
+                {/* Actieve orderlijsten */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Mijn orderlijsten</h2>
+                  {(() => {
+                    const actief = orderlijsten.filter(l => l.status === 'actueel' || l.status === 'concept')
+                    if (actief.length === 0) {
+                      return (
+                        <div className="text-center py-6">
+                          <p className="text-gray-400 text-sm mb-3">Geen actieve orderlijsten.</p>
+                          <button
+                            onClick={() => setActiveTab('orderlijst')}
+                            className="text-sm text-blue-600 font-semibold hover:underline"
+                          >
+                            Ga naar orderlijsten →
+                          </button>
                         </div>
-                        <Link
-                          href="/configurator"
-                          className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                          Configureer
-                        </Link>
+                      )
+                    }
+                    return (
+                      <div className="space-y-2">
+                        {actief.slice(0, 4).map(l => (
+                          <button
+                            key={l.id}
+                            onClick={() => setActiveTab('orderlijst')}
+                            className="w-full flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-blue-50 transition-colors text-left"
+                          >
+                            <span className="text-sm font-medium text-gray-800 truncate">{l.naam}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ml-2 shrink-0 ${l.status === 'actueel' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {l.status}
+                            </span>
+                          </button>
+                        ))}
+                        {actief.length > 4 && (
+                          <button onClick={() => setActiveTab('orderlijst')} className="text-xs text-blue-600 hover:underline mt-1">
+                            + {actief.length - 4} meer bekijken
+                          </button>
+                        )}
                       </div>
-                      {!plaat.beschikbaar && (
-                        <Badge variant="inactive" className="mt-2">Niet beschikbaar</Badge>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                    )
+                  })()}
+                </div>
+
+                {/* USP's */}
+                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Waarom Kuiper Holland</h2>
+                  <ul className="space-y-2.5">
+                    {[
+                      'Fineer van de hoogste kwaliteit in 50+ soorten',
+                      'Bijna elke combinatie is mogelijk',
+                      'Scherpe prijzen',
+                      'Bekijk het in onze fabriek of krijg een foto vóór productie',
+                      'Productietijd van ongeveer 2 weken',
+                    ].map((usp, i) => (
+                      <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700">
+                        <span className="mt-0.5 w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </span>
+                        {usp}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
               </div>
             </div>
           )}
