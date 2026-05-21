@@ -708,7 +708,7 @@ export default function ConfiguratorPage() {
                   )}
                   <div className="mt-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800">
                     <p className="font-semibold mb-0.5">Let op: foto ter indicatie</p>
-                    <p>De foto op de webshop is ter indicatie. Elke boom is anders, dus het eindresultaat kan afwijken. Mocht u willen weten welke stam Kuiper gebruikt, vraag dan om een foto met de keuze hieronder.</p>
+                    <p>De foto op de webshop is ter indicatie. Elke boom is anders, dus het eindresultaat kan afwijken. Mocht u willen weten welke stam Kuiper gebruikt, vraag dan om een foto met de keuze hierboven.</p>
                   </div>
                 </div>
               </>
