@@ -30,21 +30,22 @@ export function calculatePrice(
   const m2_per_plaat = (plaat.breedte_mm / 1000) * (plaat.lengte_mm / 1000)
   const totaal_m2 = m2_per_plaat * aantal
   const isLang = plaat.lengte_mm > 2800
+  const staffel_multiplier = getStaffelDisplayMultiplier(aantal, pricing.staffel ?? [])
 
   // Hotmelt check
   const useHotmelt = (pricing.hotmelt_combinaties ?? []).some(
     hc => hc.basisplaat_id === plaat.id && hc.categorie === categorie
   )
 
-  // Marge coëfficiënt from staffel
-  const marge_coefficient = getMargeCoefficient(aantal, pricing.staffel ?? [])
-  // Base coëfficiënt = first tier (for staffelkorting comparison)
-  const sorted = [...(pricing.staffel ?? [])].sort((a, b) => a.van_aantal - b.van_aantal)
-  const base_marge_coefficient = sorted[0]?.marge_coefficient ?? marge_coefficient
+  // The workbook data stores current material intake prices in €/m².
+  // Calibration against Specials Fineer History Codex 1 shows the most stable
+  // simple model is: basisplaat with a small markup, veneer with waste/margin,
+  // and explicit press/handling overhead. Quantity effects are kept in staffel.
+  const BASEPLAAT_MARKUP = categorie === 'kaal' ? 1.18 : 1.08
+  const HPL_WASTE_AND_MARGIN = 1.15
 
-  // ── Inkoop per m² ──
-  const inkoop_basis_per_m2 = plaat.prijs_per_m2 ?? 0
-  let inkoop_afwerking_per_m2 = 0
+  const basis_per_m2 = (plaat.prijs_per_m2 ?? 0) * BASEPLAAT_MARKUP
+  let afwerking_per_m2 = 0
 
   if (categorie === 'fineer') {
     const voorPrijs = fineer_voor
@@ -56,35 +57,36 @@ export function calculatePrice(
     const lijm = useHotmelt
       ? (pricing.pu_hotmelt_per_m2 ?? 0)
       : (pricing.fineerlijm_per_m2 ?? 0)
-    inkoop_afwerking_per_m2 = voorPrijs + tegenPrijs + lijm + (pricing.schuurbanden_per_m2 ?? 0)
+    const voorFactor = fineer_voor ? getFineerFactor(fineer_voor, voorPrijs) : 0
+    const tegenFactor = fineer_tegen ? getFineerFactor(fineer_tegen, tegenPrijs) : 0
+    const fineerMateriaal = (voorPrijs * voorFactor) + (tegenPrijs * tegenFactor)
+    const overhead = getFineerOverheadPerM2({
+      voorPrijs,
+      tegenPrijs,
+      voorOverhead: fineer_voor?.plak_overhead_per_m2,
+      tegenOverhead: fineer_tegen?.plak_overhead_per_m2,
+      voegmethode: state.voegmethode,
+      fineerkeuze: state.fineerkeuze,
+    })
+    afwerking_per_m2 = fineerMateriaal
+      + overhead
+      + (lijm * 2)
+      + (pricing.schuurbanden_per_m2 ?? 0)
   } else if (categorie === 'hpl') {
     const hplVoorPerM2 = hpl_voor
-      ? (isLang ? hpl_voor.prijs_lang : hpl_voor.prijs_kort) / m2_per_plaat
+      ? (isLang ? hpl_voor.prijs_lang : hpl_voor.prijs_kort)
       : 0
     const hplTegenPerM2 = hpl_tegen
-      ? (isLang ? hpl_tegen.prijs_lang : hpl_tegen.prijs_kort) / m2_per_plaat
+      ? (isLang ? hpl_tegen.prijs_lang : hpl_tegen.prijs_kort)
       : 0
     const lijm = useHotmelt
       ? (pricing.pu_hotmelt_per_m2 ?? 0)
       : (pricing.hpl_lijm_per_m2 ?? 0)
-    inkoop_afwerking_per_m2 = hplVoorPerM2 + hplTegenPerM2 + lijm
+    const hplSides = (hpl_voor ? 1 : 0) + (hpl_tegen ? 1 : 0)
+    afwerking_per_m2 = ((hplVoorPerM2 + hplTegenPerM2) * HPL_WASTE_AND_MARGIN)
+      + (lijm * hplSides)
+      + (hplSides > 0 ? 7.5 : 0)
   }
-
-  const inkoop_totaal_per_m2 = inkoop_basis_per_m2 + inkoop_afwerking_per_m2
-
-  // ── Verkoopprijs per m² ──
-  // At BASE rate (for "subtotaal" display line — before staffelkorting)
-  const verkoop_basis_per_m2 = base_marge_coefficient > 0
-    ? inkoop_totaal_per_m2 / base_marge_coefficient
-    : 0
-  // At ACTUAL staffel rate
-  const verkoop_per_m2 = marge_coefficient > 0
-    ? inkoop_totaal_per_m2 / marge_coefficient
-    : 0
-
-  // ── Per-plaat costs ──
-  const prijs_per_plaat_basis = verkoop_basis_per_m2 * m2_per_plaat
-  const prijs_per_plaat_staffel = verkoop_per_m2 * m2_per_plaat
 
   // ── Bewerkingen: per_m2 (door marge) vs per_order (vast bedrag) ──
   const bw_per_m2 = (bewerkingen ?? []).filter(b => (b.prijs_type ?? 'per_m2') === 'per_m2')
@@ -95,28 +97,20 @@ export function calculatePrice(
   const vaste_toeslagen_kosten = bw_per_order.reduce((sum, b) => sum + (b.prijs ?? 0), 0)
 
   // ── Subtotalen ──
-  const materiaal_basis = prijs_per_plaat_basis * aantal
-  const materiaal_staffel = prijs_per_plaat_staffel * aantal
+  const basisplaat_bruto = basis_per_m2 * totaal_m2
+  const afwerking_bruto = afwerking_per_m2 * totaal_m2
+  const materiaal_basis = basisplaat_bruto + afwerking_bruto
+  const basisplaat_kosten = basisplaat_bruto * staffel_multiplier
+  const afwerking_kosten = afwerking_bruto * staffel_multiplier
+  const materiaal_staffel = basisplaat_kosten + afwerking_kosten
   const staffel_korting = materiaal_basis - materiaal_staffel
 
   // Vaste toeslagen vallen buiten staffelkorting
   const subtotaal = materiaal_basis + bewerkingen_kosten + vaste_toeslagen_kosten
   const subtotaal_na_staffel = materiaal_staffel + bewerkingen_kosten + vaste_toeslagen_kosten
 
-  // staffel_multiplier for display percentage: base / actual
-  const staffel_multiplier = base_marge_coefficient > 0
-    ? base_marge_coefficient / marge_coefficient
-    : 1
-
-  // ── Component breakdown (at actual staffel rate, for display) ──
-  const afwerking_frac = inkoop_totaal_per_m2 > 0
-    ? inkoop_afwerking_per_m2 / inkoop_totaal_per_m2
-    : 0
-  const basis_frac = 1 - afwerking_frac
-
-  const basisplaat_kosten = materiaal_staffel * basis_frac
-  const fineer_kosten = categorie === 'fineer' ? materiaal_staffel * afwerking_frac : 0
-  const hpl_kosten = categorie === 'hpl' ? materiaal_staffel * afwerking_frac : 0
+  const fineer_kosten = categorie === 'fineer' ? afwerking_kosten : 0
+  const hpl_kosten = categorie === 'hpl' ? afwerking_kosten : 0
 
   // ── Verzending ──
   const drempel = pricing.verzend_drempel ?? 1750
@@ -151,4 +145,71 @@ function emptyResult(): PriceResult {
     staffel_multiplier: 1, staffel_korting: 0, subtotaal_na_staffel: 0,
     verzending: 0, totaal: 0, m2_per_plaat: 0, totaal_m2: 0,
   }
+}
+
+function getStaffelDisplayMultiplier(aantal: number, staffel: StaffelRegel[]): number {
+  const current = getMargeCoefficient(aantal, staffel)
+  const sorted = [...(staffel ?? [])].sort((a, b) => a.van_aantal - b.van_aantal)
+  const base = sorted[0]?.marge_coefficient ?? current
+
+  if (current <= 0 || base <= 0) return 1
+
+  // Existing admin data uses margin coefficients where higher numbers mean
+  // sharper pricing at larger quantities. Convert that into a discount
+  // multiplier for the new explicit-cost model. If future admin data is saved
+  // as direct multipliers (<= 1), accept it as-is.
+  if (current <= 1 && base <= 1 && current >= base) {
+    return Math.min(1, base / current)
+  }
+
+  return Math.min(1, current)
+}
+
+function getFineerOverheadPerM2(input: {
+  voorPrijs: number
+  tegenPrijs: number
+  voorOverhead?: number
+  tegenOverhead?: number
+  voegmethode?: string
+  fineerkeuze?: ConfiguratorState['fineerkeuze']
+}): number {
+  const selectedSides = [input.voorPrijs, input.tegenPrijs].filter(v => v > 0)
+  if (selectedSides.length === 0) return 0
+
+  const explicitOverheads = [input.voorOverhead, input.tegenOverhead]
+    .filter((value): value is number => typeof value === 'number' && value > 0)
+  let overhead: number
+
+  if (explicitOverheads.length > 0) {
+    overhead = explicitOverheads.reduce((sum, value) => sum + value, 0) / explicitOverheads.length
+  } else {
+    const avgFineer = selectedSides.reduce((sum, value) => sum + value, 0) / selectedSides.length
+    overhead = 10.5
+
+    if (avgFineer <= 2.5) overhead -= 1.5
+    else if (avgFineer >= 12) overhead += 3
+    else if (avgFineer >= 7) overhead += 1.5
+  }
+
+  if (input.voegmethode === 'mixmatch') overhead += 1.5
+  if (input.voegmethode === 'gedraaid_geschoven') overhead += 0.75
+
+  if (input.fineerkeuze === 'foto_kuiper' || input.fineerkeuze === 'foto_klant') overhead += 0.5
+  if (input.fineerkeuze === 'persoonlijk') overhead += 1.5
+
+  return Math.max(6, Math.min(16, overhead))
+}
+
+function getFineerFactor(fineer: { calculatie_factor?: number }, prijs: number): number {
+  if (typeof fineer.calculatie_factor === 'number' && fineer.calculatie_factor > 0) {
+    return fineer.calculatie_factor
+  }
+
+  // Default curve when old Supabase rows do not have per-houtsoort parameters.
+  // Low-priced transparent species get less markup; scarce/premium veneers get
+  // more loss/risk coverage.
+  if (prijs <= 2.5) return 1.45
+  if (prijs <= 6) return 1.55
+  if (prijs <= 12) return 1.7
+  return 1.85
 }

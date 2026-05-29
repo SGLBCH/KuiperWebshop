@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS public.fineers (
   prijs_voorzijde_kort   NUMERIC(10,2) NOT NULL DEFAULT 0,
   prijs_tegenzijde_lang  NUMERIC(10,2) NOT NULL DEFAULT 0,
   prijs_tegenzijde_kort  NUMERIC(10,2) NOT NULL DEFAULT 0,
+  calculatie_factor      NUMERIC(6,3) NOT NULL DEFAULT 1.600,
+  plak_overhead_per_m2   NUMERIC(10,2) NOT NULL DEFAULT 10.50,
   voegmethodes           TEXT[] NOT NULL DEFAULT '{}',
   voeg_standaard         TEXT NOT NULL DEFAULT 'gestolpt',
   fk_advies              TEXT NOT NULL DEFAULT 'fabriek'

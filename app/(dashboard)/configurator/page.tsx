@@ -13,7 +13,6 @@ import {
   seedStaffelFineerHPL,
   seedStaffelKaal,
   seedOrderlijsten,
-  seedInstellingen,
   seedVasteKosten,
 } from '@/lib/seed-data'
 import { calculatePrice } from '@/lib/pricing'
@@ -153,8 +152,13 @@ export default function ConfiguratorPage() {
         supabase.from('hotmelt_combinaties').select('*'),
       ])
 
-      if (bpRes.data?.length) setBaseplaten(bpRes.data)
-      if (fnRes.data?.length) setFineers(fnRes.data)
+      // Prefer the workbook-backed catalog unless Supabase clearly contains a
+      // full production catalog. This prevents older demo rows from silently
+      // overriding the calibrated Codex V1 price data on deploys.
+      if (bpRes.data?.length && bpRes.data.length >= 40) setBaseplaten(bpRes.data)
+      else setBaseplaten(seedBaseplaten)
+      if (fnRes.data?.length && fnRes.data.length >= 80) setFineers(fnRes.data)
+      else setFineers(seedFineers)
       if (hplRes.data?.length) setHplList(hplRes.data)
       if (uitRes.data) setUitsluitingen(uitRes.data as UitsluitingRow[])
       if (inslRes.data) setInsluitingen(inslRes.data as InsluitingRow[])

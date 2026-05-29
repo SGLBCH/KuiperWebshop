@@ -33,6 +33,8 @@ export interface Fineer {
   prijs_voorzijde_kort: number
   prijs_tegenzijde_lang: number
   prijs_tegenzijde_kort: number
+  calculatie_factor?: number       // fineer-specifieke opslag/verliesfactor
+  plak_overhead_per_m2?: number    // fineer-specifieke plakkosten/complexiteit
   voegmethodes: string[]          // ['gestolpt','geschoven','mixmatch','gedraaid_geschoven']
   voeg_standaard: string          // one of the above
   fk_advies: 'fabriek' | 'foto_kuiper' | 'foto_klant' | 'persoonlijk'
@@ -40,6 +42,7 @@ export interface Fineer {
   status_lang: 'beschikbaar' | 'tijdelijk_niet' | 'niet_beschikbaar'
   status_kort: 'beschikbaar' | 'tijdelijk_niet' | 'niet_beschikbaar'
   gallery_foto_url?: string
+  volgorde?: number
 }
 
 // ─── HPL ───────────────────────────────────────────────────────────────────────
@@ -56,6 +59,7 @@ export interface HPL {
   status_lang: 'beschikbaar' | 'tijdelijk_niet' | 'niet_beschikbaar'
   status_kort: 'beschikbaar' | 'tijdelijk_niet' | 'niet_beschikbaar'
   gallery_foto_url?: string
+  volgorde?: number
 }
 
 // ─── Bewerking ─────────────────────────────────────────────────────────────────

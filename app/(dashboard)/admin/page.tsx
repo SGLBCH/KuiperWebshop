@@ -79,188 +79,7 @@ export default function AdminPage() {
   const [aanvragen, setAanvragen] = useState<AanvraagRow[]>([])
   const [concepten, setConcepten] = useState<ConceptRow[]>([])
 
-  // Load real data from Supabase on mount
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-        if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
-          // Demo mode fallback
-          setAanmeldingen(DEMO_AANMELDINGEN)
-          setRolKeuzes(Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker'])))
-          setKlanten(DEMO_KLANTEN)
-          setLoadingData(false)
-          return
-        }
 
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-
-        // Fetch pending registrations
-        const { data: pendingData } = await supabase
-          .from('profiles')
-          .select('id, naam, bedrijf, email, aangemaakt_op')
-          .eq('status', 'pending')
-          .order('aangemaakt_op', { ascending: false })
-
-        if (pendingData) {
-          const rows: AanmeldingRow[] = pendingData.map(p => ({
-            id: p.id,
-            naam: p.naam ?? '—',
-            bedrijf: p.bedrijf ?? '—',
-            email: p.email,
-            datum: p.aangemaakt_op?.split('T')[0] ?? '—',
-            rol: 'kijker' as const,
-          }))
-          setAanmeldingen(rows)
-          setRolKeuzes(Object.fromEntries(rows.map(r => [r.id, 'kijker'])))
-        }
-
-        // Fetch approved customers (incl. last_seen_at)
-        const { data: klantenData } = await supabase
-          .from('profiles')
-          .select('id, naam, bedrijf, rol, status, aangemaakt_op, last_seen_at')
-          .in('status', ['goedgekeurd', 'gedeactiveerd'])
-          .order('aangemaakt_op', { ascending: false })
-
-        if (klantenData && klantenData.length > 0) {
-          const userIds = klantenData.map(k => k.id)
-
-          // Activiteit: tel orderlijsten en aanvragen per gebruiker
-          const [{ data: olData }, { data: aqData }] = await Promise.all([
-            supabase.from('orderlijsten').select('user_id').in('user_id', userIds),
-            supabase.from('aanvragen').select('user_id').in('user_id', userIds),
-          ])
-
-          const olCount: Record<string, number> = {}
-          const aqCount: Record<string, number> = {}
-          ;(olData ?? []).forEach((r: { user_id: string }) => { olCount[r.user_id] = (olCount[r.user_id] ?? 0) + 1 })
-          ;(aqData ?? []).forEach((r: { user_id: string }) => { aqCount[r.user_id] = (aqCount[r.user_id] ?? 0) + 1 })
-
-          setKlanten(klantenData.map(k => {
-            const lastSeenRaw = k.last_seen_at as string | null
-            const lastSeen = lastSeenRaw
-              ? new Date(lastSeenRaw).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })
-              : '—'
-            return {
-              id: k.id,
-              naam: k.naam ?? '—',
-              bedrijf: k.bedrijf ?? '—',
-              rol: k.rol ?? 'kijker',
-              status: k.status,
-              last_seen: lastSeen,
-              clicks: (olCount[k.id] ?? 0) + (aqCount[k.id] ?? 0),
-            }
-          }))
-        }
-
-        // Fetch aanvragen (verstuurd door klanten)
-        const { data: aanvraagData } = await supabase
-          .from('aanvragen')
-          .select(`
-            id, bericht, totaal_waarde, verstuurd_op,
-            fineerkeuze_tekst, orderlijst_ids,
-            profiles ( naam, bedrijf )
-          `)
-          .eq('status', 'nieuw')
-          .order('verstuurd_op', { ascending: false })
-
-        if (aanvraagData) {
-          // Haal orderlijstnamen op via aparte query
-          const aanvraagRows: AanvraagRow[] = await Promise.all(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            aanvraagData.map(async (a: any) => {
-              let projectNaam = '—'
-              const ids = (a.orderlijst_ids as string[]) ?? []
-              if (ids.length > 0) {
-                const { data: ol } = await supabase
-                  .from('orderlijsten')
-                  .select('naam')
-                  .in('id', ids)
-                if (ol?.length) projectNaam = ol.map((o: { naam: string }) => o.naam).join(', ')
-              }
-              const profiel = a.profiles as { naam: string; bedrijf: string } | null
-              return {
-                id: a.id,
-                project: projectNaam,
-                klant: profiel?.naam ?? '—',
-                bedrijf: profiel?.bedrijf ?? '—',
-                waarde: a.totaal_waarde ?? 0,
-                aangemaakt: a.verstuurd_op?.split('T')[0] ?? '—',
-                verstuurd: a.verstuurd_op?.split('T')[0] ?? '—',
-                bericht: a.bericht ?? null,
-                fineerkeuze: a.fineerkeuze_tekst ?? null,
-              }
-            })
-          )
-          setAanvragen(aanvraagRows)
-        }
-
-        // Fetch concepten (actieve orderlijsten van alle klanten)
-        const { data: conceptData } = await supabase
-          .from('orderlijsten')
-          .select('id, naam, status, bijgewerkt_op, profiles ( naam )')
-          .in('status', ['actueel', 'concept'])
-          .order('bijgewerkt_op', { ascending: false })
-
-        if (conceptData) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          setConcepten(conceptData.map((c: any) => ({
-            id: c.id,
-            naam: c.naam,
-            klant: (c.profiles as { naam: string } | { naam: string }[] | null) instanceof Array
-              ? (c.profiles as { naam: string }[])[0]?.naam ?? '—'
-              : (c.profiles as { naam: string } | null)?.naam ?? '—',
-            status: c.status,
-            bijgewerkt: c.bijgewerkt_op?.split('T')[0] ?? '—',
-          })))
-        }
-
-        // Fetch catalog data
-        const { data: bpData } = await supabase.from('baseplaten').select('*').order('volgorde', { ascending: true })
-        if (bpData && bpData.length > 0) setBaseplaten(bpData as Baseplaat[])
-
-        const { data: fnData } = await supabase.from('fineers').select('*').order('volgorde', { ascending: true })
-        if (fnData && fnData.length > 0) setFineers(fnData as Fineer[])
-
-        const { data: hplData } = await supabase.from('hpl').select('*').order('volgorde', { ascending: true })
-        if (hplData && hplData.length > 0) setHplList(hplData as HPL[])
-
-        const { data: bwData } = await supabase.from('bewerkingen').select('*').order('volgorde', { ascending: true })
-        if (bwData && bwData.length > 0) setBewerkingen(bwData as Bewerking[])
-
-        const { data: uitData } = await supabase.from('uitsluitingen').select('*')
-        if (uitData) setUitsluitingen(uitData as UitsluitingRow[])
-
-        const { data: inslData } = await supabase.from('insluitingen').select('*')
-        if (inslData) setInsluitingen(inslData as InsluitingRow[])
-
-        const { data: insData } = await supabase.from('instellingen').select('*')
-        if (insData) {
-          const get = (key: string, def: number) => parseFloat(insData.find(i => i.sleutel === key)?.waarde ?? String(def))
-          setFineerlijm(get('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2))
-          setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
-          setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
-          setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
-          const fhRaw = insData.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
-          const kaalRaw = insData.find(i => i.sleutel === 'staffel_kaal')?.waarde
-          if (fhRaw) { try { setStaffelFH(JSON.parse(fhRaw)) } catch { /* keep seed */ } }
-          if (kaalRaw) { try { setStaffelKaal(JSON.parse(kaalRaw)) } catch { /* keep seed */ } }
-        }
-        const { data: hmData } = await supabase.from('hotmelt_combinaties').select('*')
-        if (hmData) setHotmeltCombs(hmData as HotmeltCombinatie[])
-
-      } catch (err) {
-        console.error('Failed to load admin data:', err)
-        // Keep demo data on error
-        setAanmeldingen(DEMO_AANMELDINGEN)
-        setRolKeuzes(Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker'])))
-      } finally {
-        setLoadingData(false)
-      }
-    }
-    loadData()
-  }, [])
 
   async function printAanvraag(aanvraagId: string) {
     const toastId = toast.loading('Aanvraag ophalen…')
@@ -581,6 +400,7 @@ export default function AdminPage() {
   const emptyFineer = (): Omit<Fineer, 'id'> => ({
     naam: '', prijs_voorzijde_lang: 0, prijs_voorzijde_kort: 0,
     prijs_tegenzijde_lang: 0, prijs_tegenzijde_kort: 0,
+    calculatie_factor: 1.6, plak_overhead_per_m2: 10.5,
     voegmethodes: [], voeg_standaard: '', fk_advies: 'fabriek',
     status_lang: 'beschikbaar', status_kort: 'beschikbaar',
     info: '', gallery_foto_url: '',
@@ -623,6 +443,7 @@ export default function AdminPage() {
       const f = item as Fineer & { volgorde?: number }
       setFnForm({ naam: f.naam, prijs_voorzijde_lang: f.prijs_voorzijde_lang, prijs_voorzijde_kort: f.prijs_voorzijde_kort,
         prijs_tegenzijde_lang: f.prijs_tegenzijde_lang, prijs_tegenzijde_kort: f.prijs_tegenzijde_kort,
+        calculatie_factor: f.calculatie_factor ?? 1.6, plak_overhead_per_m2: f.plak_overhead_per_m2 ?? 10.5,
         voegmethodes: [...f.voegmethodes], voeg_standaard: f.voeg_standaard, fk_advies: f.fk_advies,
         status_lang: f.status_lang, status_kort: f.status_kort, info: f.info ?? '', gallery_foto_url: f.gallery_foto_url ?? '',
         volgorde: f.volgorde ?? 0 })
@@ -642,7 +463,8 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data } = await supabase.from('baseplaten').select('*').order('volgorde', { ascending: true })
-      if (data && data.length > 0) setBaseplaten(data as Baseplaat[])
+      if (data && data.length >= 40) setBaseplaten(data as Baseplaat[])
+      else setBaseplaten(seedBaseplaten)
     } catch { /* keep current */ }
   }
 
@@ -651,7 +473,8 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data } = await supabase.from('fineers').select('*').order('volgorde', { ascending: true })
-      if (data && data.length > 0) setFineers(data as Fineer[])
+      if (data && data.length >= 80) setFineers(data as Fineer[])
+      else setFineers(seedFineers)
     } catch { /* keep current */ }
   }
 
@@ -791,6 +614,8 @@ export default function AdminPage() {
               prijs_voorzijde_kort: f.prijs_voorzijde_kort,
               prijs_tegenzijde_lang: f.prijs_tegenzijde_lang,
               prijs_tegenzijde_kort: f.prijs_tegenzijde_kort,
+              calculatie_factor: f.calculatie_factor ?? 1.6,
+              plak_overhead_per_m2: f.plak_overhead_per_m2 ?? 10.5,
               fk_advies: f.fk_advies,
             })
             .eq('id', f.id)
@@ -922,6 +747,189 @@ export default function AdminPage() {
     regels: { id: string; categorie: string; plaatNaam: string; afwerking: string; aantal: number; totaal_prijs: number | null }[]
     loading: boolean
   }>({ open: false, naam: '', klant: '', regels: [], loading: false })
+
+  // Load real data from Supabase on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+        if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
+          // Demo mode fallback
+          setAanmeldingen(DEMO_AANMELDINGEN)
+          setRolKeuzes(Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker'])))
+          setKlanten(DEMO_KLANTEN)
+          setLoadingData(false)
+          return
+        }
+
+        const { createClient } = await import('@/lib/supabase/client')
+        const supabase = createClient()
+
+        // Fetch pending registrations
+        const { data: pendingData } = await supabase
+          .from('profiles')
+          .select('id, naam, bedrijf, email, aangemaakt_op')
+          .eq('status', 'pending')
+          .order('aangemaakt_op', { ascending: false })
+
+        if (pendingData) {
+          const rows: AanmeldingRow[] = pendingData.map(p => ({
+            id: p.id,
+            naam: p.naam ?? '—',
+            bedrijf: p.bedrijf ?? '—',
+            email: p.email,
+            datum: p.aangemaakt_op?.split('T')[0] ?? '—',
+            rol: 'kijker' as const,
+          }))
+          setAanmeldingen(rows)
+          setRolKeuzes(Object.fromEntries(rows.map(r => [r.id, 'kijker'])))
+        }
+
+        // Fetch approved customers (incl. last_seen_at)
+        const { data: klantenData } = await supabase
+          .from('profiles')
+          .select('id, naam, bedrijf, rol, status, aangemaakt_op, last_seen_at')
+          .in('status', ['goedgekeurd', 'gedeactiveerd'])
+          .order('aangemaakt_op', { ascending: false })
+
+        if (klantenData && klantenData.length > 0) {
+          const userIds = klantenData.map(k => k.id)
+
+          // Activiteit: tel orderlijsten en aanvragen per gebruiker
+          const [{ data: olData }, { data: aqData }] = await Promise.all([
+            supabase.from('orderlijsten').select('user_id').in('user_id', userIds),
+            supabase.from('aanvragen').select('user_id').in('user_id', userIds),
+          ])
+
+          const olCount: Record<string, number> = {}
+          const aqCount: Record<string, number> = {}
+          ;(olData ?? []).forEach((r: { user_id: string }) => { olCount[r.user_id] = (olCount[r.user_id] ?? 0) + 1 })
+          ;(aqData ?? []).forEach((r: { user_id: string }) => { aqCount[r.user_id] = (aqCount[r.user_id] ?? 0) + 1 })
+
+          setKlanten(klantenData.map(k => {
+            const lastSeenRaw = k.last_seen_at as string | null
+            const lastSeen = lastSeenRaw
+              ? new Date(lastSeenRaw).toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'short' })
+              : '—'
+            return {
+              id: k.id,
+              naam: k.naam ?? '—',
+              bedrijf: k.bedrijf ?? '—',
+              rol: k.rol ?? 'kijker',
+              status: k.status,
+              last_seen: lastSeen,
+              clicks: (olCount[k.id] ?? 0) + (aqCount[k.id] ?? 0),
+            }
+          }))
+        }
+
+        // Fetch aanvragen (verstuurd door klanten)
+        const { data: aanvraagData } = await supabase
+          .from('aanvragen')
+          .select(`
+            id, bericht, totaal_waarde, verstuurd_op,
+            fineerkeuze_tekst, orderlijst_ids,
+            profiles ( naam, bedrijf )
+          `)
+          .eq('status', 'nieuw')
+          .order('verstuurd_op', { ascending: false })
+
+        if (aanvraagData) {
+          // Haal orderlijstnamen op via aparte query
+          const aanvraagRows: AanvraagRow[] = await Promise.all(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            aanvraagData.map(async (a: any) => {
+              let projectNaam = '—'
+              const ids = (a.orderlijst_ids as string[]) ?? []
+              if (ids.length > 0) {
+                const { data: ol } = await supabase
+                  .from('orderlijsten')
+                  .select('naam')
+                  .in('id', ids)
+                if (ol?.length) projectNaam = ol.map((o: { naam: string }) => o.naam).join(', ')
+              }
+              const profiel = a.profiles as { naam: string; bedrijf: string } | null
+              return {
+                id: a.id,
+                project: projectNaam,
+                klant: profiel?.naam ?? '—',
+                bedrijf: profiel?.bedrijf ?? '—',
+                waarde: a.totaal_waarde ?? 0,
+                aangemaakt: a.verstuurd_op?.split('T')[0] ?? '—',
+                verstuurd: a.verstuurd_op?.split('T')[0] ?? '—',
+                bericht: a.bericht ?? null,
+                fineerkeuze: a.fineerkeuze_tekst ?? null,
+              }
+            })
+          )
+          setAanvragen(aanvraagRows)
+        }
+
+        // Fetch concepten (actieve orderlijsten van alle klanten)
+        const { data: conceptData } = await supabase
+          .from('orderlijsten')
+          .select('id, naam, status, bijgewerkt_op, profiles ( naam )')
+          .in('status', ['actueel', 'concept'])
+          .order('bijgewerkt_op', { ascending: false })
+
+        if (conceptData) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setConcepten(conceptData.map((c: any) => ({
+            id: c.id,
+            naam: c.naam,
+            klant: (c.profiles as { naam: string } | { naam: string }[] | null) instanceof Array
+              ? (c.profiles as { naam: string }[])[0]?.naam ?? '—'
+              : (c.profiles as { naam: string } | null)?.naam ?? '—',
+            status: c.status,
+            bijgewerkt: c.bijgewerkt_op?.split('T')[0] ?? '—',
+          })))
+        }
+
+        // Fetch catalog data
+        const { data: bpData } = await supabase.from('baseplaten').select('*').order('volgorde', { ascending: true })
+        setBaseplaten(bpData && bpData.length >= 40 ? bpData as Baseplaat[] : seedBaseplaten)
+
+        const { data: fnData } = await supabase.from('fineers').select('*').order('volgorde', { ascending: true })
+        setFineers(fnData && fnData.length >= 80 ? fnData as Fineer[] : seedFineers)
+
+        const { data: hplData } = await supabase.from('hpl').select('*').order('volgorde', { ascending: true })
+        if (hplData && hplData.length > 0) setHplList(hplData as HPL[])
+
+        const { data: bwData } = await supabase.from('bewerkingen').select('*').order('volgorde', { ascending: true })
+        setBewerkingen(bwData && bwData.length > 0 ? bwData as Bewerking[] : seedBewerkingen)
+
+        const { data: uitData } = await supabase.from('uitsluitingen').select('*')
+        if (uitData) setUitsluitingen(uitData as UitsluitingRow[])
+
+        const { data: inslData } = await supabase.from('insluitingen').select('*')
+        if (inslData) setInsluitingen(inslData as InsluitingRow[])
+
+        const { data: insData } = await supabase.from('instellingen').select('*')
+        if (insData) {
+          const get = (key: string, def: number) => parseFloat(insData.find(i => i.sleutel === key)?.waarde ?? String(def))
+          setFineerlijm(get('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2))
+          setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
+          setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
+          setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
+          const fhRaw = insData.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
+          const kaalRaw = insData.find(i => i.sleutel === 'staffel_kaal')?.waarde
+          if (fhRaw) { try { setStaffelFH(JSON.parse(fhRaw)) } catch { /* keep seed */ } }
+          if (kaalRaw) { try { setStaffelKaal(JSON.parse(kaalRaw)) } catch { /* keep seed */ } }
+        }
+        const { data: hmData } = await supabase.from('hotmelt_combinaties').select('*')
+        if (hmData) setHotmeltCombs(hmData as HotmeltCombinatie[])
+
+      } catch (err) {
+        console.error('Failed to load admin data:', err)
+        // Keep demo data on error
+        setAanmeldingen(DEMO_AANMELDINGEN)
+        setRolKeuzes(Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker'])))
+      } finally {
+        setLoadingData(false)
+      }
+    }
+    loadData()
+  }, [])
 
   async function openConceptModal(conceptId: string, naam: string, klant: string) {
     setConceptModal({ open: true, naam, klant, regels: [], loading: true })
@@ -1247,7 +1255,16 @@ export default function AdminPage() {
       rows = baseplaten.map(p => ({ id: p.id, naam: p.naam, dikte_mm: p.dikte_mm, breedte_mm: p.breedte_mm, lengte_mm: p.lengte_mm, prijs_per_m2: p.prijs_per_m2, beschikbaar: p.beschikbaar }))
       filename = 'baseplaten_prijzen.csv'
     } else if (type === 'fineers') {
-      rows = fineers.map(f => ({ id: f.id, naam: f.naam, prijs_voorzijde_lang: f.prijs_voorzijde_lang, prijs_voorzijde_kort: f.prijs_voorzijde_kort, prijs_tegenzijde_lang: f.prijs_tegenzijde_lang, prijs_tegenzijde_kort: f.prijs_tegenzijde_kort }))
+      rows = fineers.map(f => ({
+        id: f.id,
+        naam: f.naam,
+        prijs_voorzijde_lang: f.prijs_voorzijde_lang,
+        prijs_voorzijde_kort: f.prijs_voorzijde_kort,
+        prijs_tegenzijde_lang: f.prijs_tegenzijde_lang,
+        prijs_tegenzijde_kort: f.prijs_tegenzijde_kort,
+        calculatie_factor: f.calculatie_factor ?? '',
+        plak_overhead_per_m2: f.plak_overhead_per_m2 ?? '',
+      }))
       filename = 'fineers_prijzen.csv'
     } else {
       rows = hplList.map(h => ({ id: h.id, kleur: h.kleur, prijs_lang: h.prijs_lang, prijs_kort: h.prijs_kort, hpl_afm_lang_b: h.hpl_afm_lang_b, hpl_afm_lang_l: h.hpl_afm_lang_l, hpl_afm_kort_b: h.hpl_afm_kort_b, hpl_afm_kort_l: h.hpl_afm_kort_l }))
@@ -1305,7 +1322,7 @@ export default function AdminPage() {
           for (const row of parsedRows) {
             if (!row.id) { skipped++; continue }
             const patch: Record<string, unknown> = {}
-            for (const f of ['prijs_voorzijde_lang', 'prijs_voorzijde_kort', 'prijs_tegenzijde_lang', 'prijs_tegenzijde_kort'] as const) {
+            for (const f of ['prijs_voorzijde_lang', 'prijs_voorzijde_kort', 'prijs_tegenzijde_lang', 'prijs_tegenzijde_kort', 'calculatie_factor', 'plak_overhead_per_m2'] as const) {
               if (row[f] !== undefined) { const v = parseFloat(row[f]); if (!isNaN(v)) patch[f] = v }
             }
             if (Object.keys(patch).length === 0) { skipped++; continue }
@@ -1751,6 +1768,8 @@ export default function AdminPage() {
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Voor kort</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Tegen lang</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Tegen kort</th>
+                      <th className="text-right py-2 px-2 font-semibold text-gray-500">Factor</th>
+                      <th className="text-right py-2 px-2 font-semibold text-gray-500">Overhead</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-500">FK Advies</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-500">Status lang</th>
                       <th className="text-left py-2 px-2 font-semibold text-gray-500">Status kort</th>
@@ -1768,6 +1787,8 @@ export default function AdminPage() {
                           { key: 'prijs_voorzijde_kort', val: f.prijs_voorzijde_kort },
                           { key: 'prijs_tegenzijde_lang', val: f.prijs_tegenzijde_lang },
                           { key: 'prijs_tegenzijde_kort', val: f.prijs_tegenzijde_kort },
+                          { key: 'calculatie_factor', val: f.calculatie_factor ?? 1.6 },
+                          { key: 'plak_overhead_per_m2', val: f.plak_overhead_per_m2 ?? 10.5 },
                         ].map(field => (
                           <td key={field.key} className="py-2 px-2 text-right">
                             <input
@@ -2228,6 +2249,16 @@ export default function AdminPage() {
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Prijs tegenzijde kort (€)</label>
                         <input type="number" step="0.01" value={fnForm.prijs_tegenzijde_kort} onChange={e => setFnForm(f => ({ ...f, prijs_tegenzijde_kort: parseFloat(e.target.value) || 0 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Calculatiefactor</label>
+                        <input type="number" step="0.01" value={fnForm.calculatie_factor ?? 1.6} onChange={e => setFnForm(f => ({ ...f, calculatie_factor: parseFloat(e.target.value) || 1.6 }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Plakoverhead €/m²</label>
+                        <input type="number" step="0.1" value={fnForm.plak_overhead_per_m2 ?? 10.5} onChange={e => setFnForm(f => ({ ...f, plak_overhead_per_m2: parseFloat(e.target.value) || 10.5 }))}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
                     </div>
