@@ -31,6 +31,16 @@ type AdminTab =
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
 type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null }
+type SupabaseErrorLike = { code?: string; message?: string } | null | undefined
+
+function isMissingColumnError(error: SupabaseErrorLike) {
+  return error?.code === '42703' || /column .* does not exist/i.test(error?.message ?? '')
+}
+
+function withoutFineerCalculationColumns(payload: Record<string, unknown>) {
+  const { calculatie_factor, plak_overhead_per_m2, ...legacyPayload } = payload
+  return legacyPayload
+}
 
 function parseStaffelRows(rows: StaffelDbRow[]) {
   const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
@@ -84,6 +94,7 @@ type ConceptRow = { id: string; naam: string; klant: string; status: string; bij
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>('aanmeldingen')
   const [loadingData, setLoadingData] = useState(true)
+  const [pricingMigrationMissing, setPricingMigrationMissing] = useState(false)
 
   // Aanmeldingen state
   const [aanmeldingen, setAanmeldingen] = useState<AanmeldingRow[]>([])
@@ -550,7 +561,20 @@ export default function AdminPage() {
         ? { id: modalItem.id, ...fnForm }
         : { ...fnForm }
       const { error } = await supabase.from('fineers').upsert(payload as Record<string, unknown>)
-      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      if (error) {
+        if (isMissingColumnError(error)) {
+          setPricingMigrationMissing(true)
+          const { error: legacyError } = await supabase
+            .from('fineers')
+            .upsert(withoutFineerCalculationColumns(payload as Record<string, unknown>))
+          if (legacyError) { toast.error('Fout: ' + legacyError.message, { id: toastId }); return }
+          toast.success('Fineer opgeslagen. Calculatiefactor en overhead vragen nog de database-migratie.', { id: toastId })
+          setModalType(null)
+          await loadFineers()
+          return
+        }
+        toast.error('Fout: ' + error.message, { id: toastId }); return
+      }
       toast.success(modalItem ? 'Fineer bijgewerkt' : 'Fineer toegevoegd', { id: toastId })
       setModalType(null)
       await loadFineers()
@@ -618,13 +642,12 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
 
-      const results = await Promise.all([
-        ...baseplaten.map(p =>
+      const baseplaatResults = await Promise.all(baseplaten.map(p =>
           supabase.from('baseplaten')
             .update({ prijs_per_m2: p.prijs_per_m2, beschikbaar: p.beschikbaar })
             .eq('id', p.id)
-        ),
-        ...fineers.map(f =>
+        ))
+      let fineerResults = await Promise.all(fineers.map(f =>
           supabase.from('fineers')
             .update({
               prijs_voorzijde_lang: f.prijs_voorzijde_lang,
@@ -636,13 +659,28 @@ export default function AdminPage() {
               fk_advies: f.fk_advies,
             })
             .eq('id', f.id)
-        ),
-        ...hplList.map(h =>
+        ))
+      const missingFineerMigration = fineerResults.some(r => isMissingColumnError(r.error))
+      if (missingFineerMigration) {
+        setPricingMigrationMissing(true)
+        fineerResults = await Promise.all(fineers.map(f =>
+          supabase.from('fineers')
+            .update({
+              prijs_voorzijde_lang: f.prijs_voorzijde_lang,
+              prijs_voorzijde_kort: f.prijs_voorzijde_kort,
+              prijs_tegenzijde_lang: f.prijs_tegenzijde_lang,
+              prijs_tegenzijde_kort: f.prijs_tegenzijde_kort,
+              fk_advies: f.fk_advies,
+            })
+            .eq('id', f.id)
+        ))
+      }
+      const hplResults = await Promise.all(hplList.map(h =>
           supabase.from('hpl')
             .update({ prijs_lang: h.prijs_lang, prijs_kort: h.prijs_kort })
             .eq('id', h.id)
-        ),
-      ])
+        ))
+      const results = [...baseplaatResults, ...fineerResults, ...hplResults]
 
       const failed = results.filter(r => r.error)
       if (failed.length > 0) {
@@ -650,7 +688,12 @@ export default function AdminPage() {
         toast.error(`${failed.length} prijs(zen) konden niet worden opgeslagen`, { id: toastId })
         return
       }
-      toast.success('Prijzen opgeslagen', { id: toastId })
+      toast.success(
+        missingFineerMigration
+          ? 'Prijzen opgeslagen. Fineer calculatiefactor/overhead vragen nog de database-migratie.'
+          : 'Prijzen opgeslagen',
+        { id: toastId }
+      )
     } catch (e) {
       toast.error('Opslaan mislukt', { id: toastId })
       console.error(e)
@@ -833,6 +876,13 @@ export default function AdminPage() {
 
         const { createClient } = await import('@/lib/supabase/client')
         const supabase = createClient()
+        const [{ error: fineerCalcError }, { error: staffelCalcError }] = await Promise.all([
+          supabase.from('fineers').select('id, calculatie_factor, plak_overhead_per_m2').limit(1),
+          supabase.from('staffelregels').select('id, marge_coefficient, multiplier').limit(1),
+        ])
+        if (isMissingColumnError(fineerCalcError) || isMissingColumnError(staffelCalcError)) {
+          setPricingMigrationMissing(true)
+        }
 
         // Fetch pending registrations
         const { data: pendingData } = await supabase
@@ -1412,7 +1462,17 @@ export default function AdminPage() {
             }
             if (Object.keys(patch).length === 0) { skipped++; continue }
             const { error } = await supabase.from('fineers').update(patch).eq('id', row.id)
-            if (error) { skipped++ } else { updated++; setFineers(f => f.map(x => x.id === row.id ? { ...x, ...patch } as Fineer : x)) }
+            if (error) {
+              if (isMissingColumnError(error)) {
+                setPricingMigrationMissing(true)
+                const legacyPatch = withoutFineerCalculationColumns(patch)
+                if (Object.keys(legacyPatch).length === 0) { skipped++; continue }
+                const { error: legacyError } = await supabase.from('fineers').update(legacyPatch).eq('id', row.id)
+                if (legacyError) { skipped++ } else { updated++; setFineers(f => f.map(x => x.id === row.id ? { ...x, ...legacyPatch } as Fineer : x)) }
+              } else {
+                skipped++
+              }
+            } else { updated++; setFineers(f => f.map(x => x.id === row.id ? { ...x, ...patch } as Fineer : x)) }
           }
         } else {
           for (const row of parsedRows) {
@@ -1733,6 +1793,7 @@ export default function AdminPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">Prijsbeheer</h2>
             </div>
+            {pricingMigrationMissing && <PricingMigrationWarning />}
 
             {/* Basisplaten */}
             <div>
@@ -2043,6 +2104,7 @@ export default function AdminPage() {
         {activeTab === 'staffel' && (
           <div className="p-6 space-y-8">
             <h2 className="text-lg font-semibold text-gray-800">Staffel & verzendkosten</h2>
+            {pricingMigrationMissing && <PricingMigrationWarning />}
 
             {/* Fineer & HPL staffel */}
             <div>
@@ -3286,6 +3348,14 @@ function NumberSettingInput({
         onChange={e => onChange(parseFloat(e.target.value) || 0)}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
+    </div>
+  )
+}
+
+function PricingMigrationWarning() {
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      Database-migratie ontbreekt nog: voer `supabase/migrations/20260529_pricing_calculation_admin.sql` uit in Supabase om calculatiefactoren, fineer-overhead en margecoefficienten permanent op te slaan.
     </div>
   )
 }
