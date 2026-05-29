@@ -51,7 +51,35 @@ type CatalogCache = {
   schuurbanden: number
   hplLijm: number
   puHotmelt: number
+  basisMarkupFineerHpl: number
+  basisMarkupKaal: number
+  hplCalculatieFactor: number
+  hplOverhead: number
+  fineerOverheadMin: number
+  fineerOverheadMax: number
+  toeslagMixmatch: number
+  toeslagGedraaidGeschoven: number
+  toeslagFotoFineerkeuze: number
+  toeslagPersoonlijkFineerkeuze: number
   hotmeltCombs: HotmeltCombinatie[]
+}
+
+type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null }
+
+function parseStaffelRows(rows: StaffelDbRow[]) {
+  const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
+    if (typeof row.marge_coefficient !== 'number') return null
+    return {
+      id: row.id,
+      van_aantal: row.van_aantal,
+      tot_aantal: row.tot_aantal,
+      marge_coefficient: row.marge_coefficient,
+    }
+  }
+  return {
+    fineerHpl: rows.filter(row => row.type === 'fineer_hpl').map(toRegel).filter((row): row is StaffelRegel => row !== null),
+    kaal: rows.filter(row => row.type === 'kaal').map(toRegel).filter((row): row is StaffelRegel => row !== null),
+  }
 }
 
 const FINEERKEUZE_LABELS: Record<string, string> = {
@@ -377,6 +405,16 @@ export default function DashboardPage() {
         schuurbanden_per_m2: catalog.schuurbanden,
         hpl_lijm_per_m2: catalog.hplLijm,
         pu_hotmelt_per_m2: catalog.puHotmelt,
+        basisplaat_markup_fineer_hpl: catalog.basisMarkupFineerHpl,
+        basisplaat_markup_kaal: catalog.basisMarkupKaal,
+        hpl_calculatie_factor: catalog.hplCalculatieFactor,
+        hpl_overhead_per_m2: catalog.hplOverhead,
+        fineer_overhead_min_per_m2: catalog.fineerOverheadMin,
+        fineer_overhead_max_per_m2: catalog.fineerOverheadMax,
+        toeslag_mixmatch_per_m2: catalog.toeslagMixmatch,
+        toeslag_gedraaid_geschoven_per_m2: catalog.toeslagGedraaidGeschoven,
+        toeslag_foto_fineerkeuze_per_m2: catalog.toeslagFotoFineerkeuze,
+        toeslag_persoonlijk_fineerkeuze_per_m2: catalog.toeslagPersoonlijkFineerkeuze,
         hotmelt_combinaties: catalog.hotmeltCombs,
       }
 
@@ -422,11 +460,12 @@ export default function DashboardPage() {
   // Gedeelde catalogus-loader (hergebruikt door openBekijk, combineer en loskoppel)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function loadCatalog(supabase: any): Promise<CatalogCache> {
-    const [bpRes, fnRes, hplRes, bwRes, insRes, hmRes] = await Promise.all([
+    const [bpRes, fnRes, hplRes, bwRes, staffelRes, insRes, hmRes] = await Promise.all([
       supabase.from('baseplaten').select('*'),
       supabase.from('fineers').select('*'),
       supabase.from('hpl').select('*'),
       supabase.from('bewerkingen').select('*'),
+      supabase.from('staffelregels').select('*').order('van_aantal'),
       supabase.from('instellingen').select('*'),
       supabase.from('hotmelt_combinaties').select('*'),
     ])
@@ -442,6 +481,11 @@ export default function DashboardPage() {
       if (fhRaw) staffelFH = JSON.parse(fhRaw)
       if (kaalRaw) staffelKaal = JSON.parse(kaalRaw)
     } catch { /* gebruik seed defaults */ }
+    if (staffelRes.data?.length) {
+      const fromTable = parseStaffelRows(staffelRes.data as StaffelDbRow[])
+      if (fromTable.fineerHpl.length > 0) staffelFH = fromTable.fineerHpl
+      if (fromTable.kaal.length > 0) staffelKaal = fromTable.kaal
+    }
     return {
       baseplaten: (bpRes.data ?? []) as Baseplaat[],
       fineers: (fnRes.data ?? []) as Fineer[],
@@ -454,6 +498,16 @@ export default function DashboardPage() {
       schuurbanden: getIns('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2),
       hplLijm: getIns('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2),
       puHotmelt: getIns('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2),
+      basisMarkupFineerHpl: getIns('basisplaat_markup_fineer_hpl', seedVasteKosten.basisplaat_markup_fineer_hpl),
+      basisMarkupKaal: getIns('basisplaat_markup_kaal', seedVasteKosten.basisplaat_markup_kaal),
+      hplCalculatieFactor: getIns('hpl_calculatie_factor', seedVasteKosten.hpl_calculatie_factor),
+      hplOverhead: getIns('hpl_overhead_per_m2', seedVasteKosten.hpl_overhead_per_m2),
+      fineerOverheadMin: getIns('fineer_overhead_min_per_m2', seedVasteKosten.fineer_overhead_min_per_m2),
+      fineerOverheadMax: getIns('fineer_overhead_max_per_m2', seedVasteKosten.fineer_overhead_max_per_m2),
+      toeslagMixmatch: getIns('toeslag_mixmatch_per_m2', seedVasteKosten.toeslag_mixmatch_per_m2),
+      toeslagGedraaidGeschoven: getIns('toeslag_gedraaid_geschoven_per_m2', seedVasteKosten.toeslag_gedraaid_geschoven_per_m2),
+      toeslagFotoFineerkeuze: getIns('toeslag_foto_fineerkeuze_per_m2', seedVasteKosten.toeslag_foto_fineerkeuze_per_m2),
+      toeslagPersoonlijkFineerkeuze: getIns('toeslag_persoonlijk_fineerkeuze_per_m2', seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2),
       hotmeltCombs: (hmRes.data ?? []) as HotmeltCombinatie[],
     }
   }

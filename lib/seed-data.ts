@@ -4494,6 +4494,16 @@ export const seedVasteKosten = {
   schuurbanden_per_m2: 0.14,
   hpl_lijm_per_m2: 0.50,
   pu_hotmelt_per_m2: 1.60,
+  basisplaat_markup_fineer_hpl: 1.08,
+  basisplaat_markup_kaal: 1.18,
+  hpl_calculatie_factor: 1.15,
+  hpl_overhead_per_m2: 7.50,
+  fineer_overhead_min_per_m2: 6,
+  fineer_overhead_max_per_m2: 16,
+  toeslag_mixmatch_per_m2: 1.50,
+  toeslag_gedraaid_geschoven_per_m2: 0.75,
+  toeslag_foto_fineerkeuze_per_m2: 0.50,
+  toeslag_persoonlijk_fineerkeuze_per_m2: 1.50,
 }
 
 // ─── Instellingen ──────────────────────────────────────────────────────────────

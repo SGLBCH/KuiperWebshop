@@ -16,11 +16,28 @@ import {
   seedVasteKosten,
 } from '@/lib/seed-data'
 import { calculatePrice } from '@/lib/pricing'
-import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst, PricingData, HotmeltCombinatie } from '@/lib/types'
+import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst, PricingData, HotmeltCombinatie, StaffelRegel } from '@/lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
+type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null }
+
+function parseStaffelRows(rows: StaffelDbRow[]) {
+  const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
+    if (typeof row.marge_coefficient !== 'number') return null
+    return {
+      id: row.id,
+      van_aantal: row.van_aantal,
+      tot_aantal: row.tot_aantal,
+      marge_coefficient: row.marge_coefficient,
+    }
+  }
+  return {
+    fineerHpl: rows.filter(row => row.type === 'fineer_hpl').map(toRegel).filter((row): row is StaffelRegel => row !== null),
+    kaal: rows.filter(row => row.type === 'kaal').map(toRegel).filter((row): row is StaffelRegel => row !== null),
+  }
+}
 
 function isUitgesloten(list: UitsluitingRow[], tA: string, idA: string, tB: string, idB: string) {
   return list.some(u =>
@@ -100,6 +117,16 @@ export default function ConfiguratorPage() {
   const [schuurbanden, setSchuurbanden] = useState(seedVasteKosten.schuurbanden_per_m2)
   const [hplLijm, setHplLijm] = useState(seedVasteKosten.hpl_lijm_per_m2)
   const [puHotmelt, setPuHotmelt] = useState(seedVasteKosten.pu_hotmelt_per_m2)
+  const [basisMarkupFineerHpl, setBasisMarkupFineerHpl] = useState(seedVasteKosten.basisplaat_markup_fineer_hpl)
+  const [basisMarkupKaal, setBasisMarkupKaal] = useState(seedVasteKosten.basisplaat_markup_kaal)
+  const [hplCalculatieFactor, setHplCalculatieFactor] = useState(seedVasteKosten.hpl_calculatie_factor)
+  const [hplOverhead, setHplOverhead] = useState(seedVasteKosten.hpl_overhead_per_m2)
+  const [fineerOverheadMin, setFineerOverheadMin] = useState(seedVasteKosten.fineer_overhead_min_per_m2)
+  const [fineerOverheadMax, setFineerOverheadMax] = useState(seedVasteKosten.fineer_overhead_max_per_m2)
+  const [toeslagMixmatch, setToeslagMixmatch] = useState(seedVasteKosten.toeslag_mixmatch_per_m2)
+  const [toeslagGedraaidGeschoven, setToeslagGedraaidGeschoven] = useState(seedVasteKosten.toeslag_gedraaid_geschoven_per_m2)
+  const [toeslagFotoFineerkeuze, setToeslagFotoFineerkeuze] = useState(seedVasteKosten.toeslag_foto_fineerkeuze_per_m2)
+  const [toeslagPersoonlijkFineerkeuze, setToeslagPersoonlijkFineerkeuze] = useState(seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2)
   const [hotmeltCombs, setHotmeltCombs] = useState<HotmeltCombinatie[]>([])
   const [fotoZoom, setFotoZoom] = useState<{ url: string; naam: string } | null>(null)
 
@@ -111,6 +138,16 @@ export default function ConfiguratorPage() {
     schuurbanden_per_m2: schuurbanden,
     hpl_lijm_per_m2: hplLijm,
     pu_hotmelt_per_m2: puHotmelt,
+    basisplaat_markup_fineer_hpl: basisMarkupFineerHpl,
+    basisplaat_markup_kaal: basisMarkupKaal,
+    hpl_calculatie_factor: hplCalculatieFactor,
+    hpl_overhead_per_m2: hplOverhead,
+    fineer_overhead_min_per_m2: fineerOverheadMin,
+    fineer_overhead_max_per_m2: fineerOverheadMax,
+    toeslag_mixmatch_per_m2: toeslagMixmatch,
+    toeslag_gedraaid_geschoven_per_m2: toeslagGedraaidGeschoven,
+    toeslag_foto_fineerkeuze_per_m2: toeslagFotoFineerkeuze,
+    toeslag_persoonlijk_fineerkeuze_per_m2: toeslagPersoonlijkFineerkeuze,
     hotmelt_combinaties: hotmeltCombs,
   }
 
@@ -141,11 +178,12 @@ export default function ConfiguratorPage() {
       if (lijsten) setOrderlijsten(lijsten)
 
       // Load catalog (baseplaten, fineers, hpl, bewerkingen)
-      const [bpRes, fnRes, hplRes, bwRes, insRes, uitRes, inslRes, hmRes] = await Promise.all([
+      const [bpRes, fnRes, hplRes, bwRes, staffelRes, insRes, uitRes, inslRes, hmRes] = await Promise.all([
         supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
         supabase.from('fineers').select('*').order('volgorde'),
         supabase.from('hpl').select('*').order('kleur'),
         supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
+        supabase.from('staffelregels').select('*').order('van_aantal'),
         supabase.from('instellingen').select('*'),
         supabase.from('uitsluitingen').select('*'),
         supabase.from('insluitingen').select('*'),
@@ -180,10 +218,25 @@ export default function ConfiguratorPage() {
         setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
         setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
         setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
+        setBasisMarkupFineerHpl(get('basisplaat_markup_fineer_hpl', seedVasteKosten.basisplaat_markup_fineer_hpl))
+        setBasisMarkupKaal(get('basisplaat_markup_kaal', seedVasteKosten.basisplaat_markup_kaal))
+        setHplCalculatieFactor(get('hpl_calculatie_factor', seedVasteKosten.hpl_calculatie_factor))
+        setHplOverhead(get('hpl_overhead_per_m2', seedVasteKosten.hpl_overhead_per_m2))
+        setFineerOverheadMin(get('fineer_overhead_min_per_m2', seedVasteKosten.fineer_overhead_min_per_m2))
+        setFineerOverheadMax(get('fineer_overhead_max_per_m2', seedVasteKosten.fineer_overhead_max_per_m2))
+        setToeslagMixmatch(get('toeslag_mixmatch_per_m2', seedVasteKosten.toeslag_mixmatch_per_m2))
+        setToeslagGedraaidGeschoven(get('toeslag_gedraaid_geschoven_per_m2', seedVasteKosten.toeslag_gedraaid_geschoven_per_m2))
+        setToeslagFotoFineerkeuze(get('toeslag_foto_fineerkeuze_per_m2', seedVasteKosten.toeslag_foto_fineerkeuze_per_m2))
+        setToeslagPersoonlijkFineerkeuze(get('toeslag_persoonlijk_fineerkeuze_per_m2', seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2))
         const fhRaw = ins.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
         const kaalRaw = ins.find(i => i.sleutel === 'staffel_kaal')?.waarde
         if (fhRaw) { try { setStaffelFH(JSON.parse(fhRaw)) } catch { /* keep seed */ } }
         if (kaalRaw) { try { setStaffelKaal(JSON.parse(kaalRaw)) } catch { /* keep seed */ } }
+      }
+      if (staffelRes.data?.length) {
+        const fromTable = parseStaffelRows(staffelRes.data)
+        if (fromTable.fineerHpl.length > 0) setStaffelFH(fromTable.fineerHpl)
+        if (fromTable.kaal.length > 0) setStaffelKaal(fromTable.kaal)
       }
       if (hmRes.data) setHotmeltCombs(hmRes.data as HotmeltCombinatie[])
     }

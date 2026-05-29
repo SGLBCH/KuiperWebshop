@@ -41,8 +41,10 @@ export function calculatePrice(
   // Calibration against Specials Fineer History Codex 1 shows the most stable
   // simple model is: basisplaat with a small markup, veneer with waste/margin,
   // and explicit press/handling overhead. Quantity effects are kept in staffel.
-  const BASEPLAAT_MARKUP = categorie === 'kaal' ? 1.18 : 1.08
-  const HPL_WASTE_AND_MARGIN = 1.15
+  const BASEPLAAT_MARKUP = categorie === 'kaal'
+    ? (pricing.basisplaat_markup_kaal ?? 1.18)
+    : (pricing.basisplaat_markup_fineer_hpl ?? 1.08)
+  const HPL_WASTE_AND_MARGIN = pricing.hpl_calculatie_factor ?? 1.15
 
   const basis_per_m2 = (plaat.prijs_per_m2 ?? 0) * BASEPLAAT_MARKUP
   let afwerking_per_m2 = 0
@@ -67,6 +69,12 @@ export function calculatePrice(
       tegenOverhead: fineer_tegen?.plak_overhead_per_m2,
       voegmethode: state.voegmethode,
       fineerkeuze: state.fineerkeuze,
+      minOverhead: pricing.fineer_overhead_min_per_m2,
+      maxOverhead: pricing.fineer_overhead_max_per_m2,
+      mixmatchToeslag: pricing.toeslag_mixmatch_per_m2,
+      gedraaidGeschovenToeslag: pricing.toeslag_gedraaid_geschoven_per_m2,
+      fotoFineerkeuzeToeslag: pricing.toeslag_foto_fineerkeuze_per_m2,
+      persoonlijkFineerkeuzeToeslag: pricing.toeslag_persoonlijk_fineerkeuze_per_m2,
     })
     afwerking_per_m2 = fineerMateriaal
       + overhead
@@ -85,7 +93,7 @@ export function calculatePrice(
     const hplSides = (hpl_voor ? 1 : 0) + (hpl_tegen ? 1 : 0)
     afwerking_per_m2 = ((hplVoorPerM2 + hplTegenPerM2) * HPL_WASTE_AND_MARGIN)
       + (lijm * hplSides)
-      + (hplSides > 0 ? 7.5 : 0)
+      + (hplSides > 0 ? (pricing.hpl_overhead_per_m2 ?? 7.5) : 0)
   }
 
   // ── Bewerkingen: per_m2 (door marge) vs per_order (vast bedrag) ──
@@ -172,6 +180,12 @@ function getFineerOverheadPerM2(input: {
   tegenOverhead?: number
   voegmethode?: string
   fineerkeuze?: ConfiguratorState['fineerkeuze']
+  minOverhead?: number
+  maxOverhead?: number
+  mixmatchToeslag?: number
+  gedraaidGeschovenToeslag?: number
+  fotoFineerkeuzeToeslag?: number
+  persoonlijkFineerkeuzeToeslag?: number
 }): number {
   const selectedSides = [input.voorPrijs, input.tegenPrijs].filter(v => v > 0)
   if (selectedSides.length === 0) return 0
@@ -191,13 +205,15 @@ function getFineerOverheadPerM2(input: {
     else if (avgFineer >= 7) overhead += 1.5
   }
 
-  if (input.voegmethode === 'mixmatch') overhead += 1.5
-  if (input.voegmethode === 'gedraaid_geschoven') overhead += 0.75
+  if (input.voegmethode === 'mixmatch') overhead += input.mixmatchToeslag ?? 1.5
+  if (input.voegmethode === 'gedraaid_geschoven') overhead += input.gedraaidGeschovenToeslag ?? 0.75
 
-  if (input.fineerkeuze === 'foto_kuiper' || input.fineerkeuze === 'foto_klant') overhead += 0.5
-  if (input.fineerkeuze === 'persoonlijk') overhead += 1.5
+  if (input.fineerkeuze === 'foto_kuiper' || input.fineerkeuze === 'foto_klant') {
+    overhead += input.fotoFineerkeuzeToeslag ?? 0.5
+  }
+  if (input.fineerkeuze === 'persoonlijk') overhead += input.persoonlijkFineerkeuzeToeslag ?? 1.5
 
-  return Math.max(6, Math.min(16, overhead))
+  return Math.max(input.minOverhead ?? 6, Math.min(input.maxOverhead ?? 16, overhead))
 }
 
 function getFineerFactor(fineer: { calculatie_factor?: number }, prijs: number): number {

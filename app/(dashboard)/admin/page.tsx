@@ -30,6 +30,23 @@ type AdminTab =
 
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
+type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null }
+
+function parseStaffelRows(rows: StaffelDbRow[]) {
+  const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
+    if (typeof row.marge_coefficient !== 'number') return null
+    return {
+      id: row.id,
+      van_aantal: row.van_aantal,
+      tot_aantal: row.tot_aantal,
+      marge_coefficient: row.marge_coefficient,
+    }
+  }
+  return {
+    fineerHpl: rows.filter(row => row.type === 'fineer_hpl').map(toRegel).filter((row): row is StaffelRegel => row !== null),
+    kaal: rows.filter(row => row.type === 'kaal').map(toRegel).filter((row): row is StaffelRegel => row !== null),
+  }
+}
 
 const DEMO_AANMELDINGEN = [
   { id: 'a1', naam: 'Pieter Smit', bedrijf: 'Smit Interieur', email: 'p.smit@smitinterieur.nl', datum: '2026-05-07', rol: 'kijker' as const },
@@ -653,8 +670,40 @@ export default function AdminPage() {
       ]
       const { error } = await supabase.from('instellingen').upsert(upserts, { onConflict: 'sleutel' })
       if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      const tableError = await saveStaffelTable(supabase, 'fineer_hpl', staffelFH)
+        ?? await saveStaffelTable(supabase, 'kaal', staffelKaal)
+      if (tableError) {
+        toast.error('Instellingen opgeslagen, maar staffeltabel niet: ' + tableError, { id: toastId })
+        return
+      }
       toast.success('Staffel opgeslagen', { id: toastId })
     } catch (e) { toast.error('Opslaan mislukt', { id: toastId }); console.error(e) }
+  }
+
+  async function saveStaffelTable(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    supabase: any,
+    type: 'fineer_hpl' | 'kaal',
+    staffel: StaffelRegel[]
+  ): Promise<string | null> {
+    const sorted = [...staffel].sort((a, b) => a.van_aantal - b.van_aantal)
+    const base = sorted[0]?.marge_coefficient ?? 1
+    const rows = sorted.map(r => ({
+      type,
+      van_aantal: r.van_aantal,
+      tot_aantal: r.tot_aantal,
+      marge_coefficient: r.marge_coefficient,
+      multiplier: r.marge_coefficient > 0 ? Math.min(1, base / r.marge_coefficient) : 1,
+    }))
+
+    const { error: deleteError } = await supabase.from('staffelregels').delete().eq('type', type)
+    if (deleteError) return deleteError.message
+    const { error: insertError } = await supabase.from('staffelregels').insert(rows)
+    if (!insertError) return null
+
+    const legacyRows = rows.map(({ marge_coefficient, ...row }) => row)
+    const { error: legacyError } = await supabase.from('staffelregels').insert(legacyRows)
+    return legacyError?.message ?? null
   }
 
   async function saveVasteKosten() {
@@ -667,6 +716,16 @@ export default function AdminPage() {
         { sleutel: 'schuurbanden_per_m2', waarde: String(schuurbanden) },
         { sleutel: 'hpl_lijm_per_m2', waarde: String(hplLijm) },
         { sleutel: 'pu_hotmelt_per_m2', waarde: String(puHotmelt) },
+        { sleutel: 'basisplaat_markup_fineer_hpl', waarde: String(basisMarkupFineerHpl) },
+        { sleutel: 'basisplaat_markup_kaal', waarde: String(basisMarkupKaal) },
+        { sleutel: 'hpl_calculatie_factor', waarde: String(hplCalculatieFactor) },
+        { sleutel: 'hpl_overhead_per_m2', waarde: String(hplOverhead) },
+        { sleutel: 'fineer_overhead_min_per_m2', waarde: String(fineerOverheadMin) },
+        { sleutel: 'fineer_overhead_max_per_m2', waarde: String(fineerOverheadMax) },
+        { sleutel: 'toeslag_mixmatch_per_m2', waarde: String(toeslagMixmatch) },
+        { sleutel: 'toeslag_gedraaid_geschoven_per_m2', waarde: String(toeslagGedraaidGeschoven) },
+        { sleutel: 'toeslag_foto_fineerkeuze_per_m2', waarde: String(toeslagFotoFineerkeuze) },
+        { sleutel: 'toeslag_persoonlijk_fineerkeuze_per_m2', waarde: String(toeslagPersoonlijkFineerkeuze) },
       ]
       const { error } = await supabase.from('instellingen').upsert(upserts, { onConflict: 'sleutel' })
       if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
@@ -717,6 +776,16 @@ export default function AdminPage() {
   const [schuurbanden, setSchuurbanden] = useState(seedVasteKosten.schuurbanden_per_m2)
   const [hplLijm, setHplLijm] = useState(seedVasteKosten.hpl_lijm_per_m2)
   const [puHotmelt, setPuHotmelt] = useState(seedVasteKosten.pu_hotmelt_per_m2)
+  const [basisMarkupFineerHpl, setBasisMarkupFineerHpl] = useState(seedVasteKosten.basisplaat_markup_fineer_hpl)
+  const [basisMarkupKaal, setBasisMarkupKaal] = useState(seedVasteKosten.basisplaat_markup_kaal)
+  const [hplCalculatieFactor, setHplCalculatieFactor] = useState(seedVasteKosten.hpl_calculatie_factor)
+  const [hplOverhead, setHplOverhead] = useState(seedVasteKosten.hpl_overhead_per_m2)
+  const [fineerOverheadMin, setFineerOverheadMin] = useState(seedVasteKosten.fineer_overhead_min_per_m2)
+  const [fineerOverheadMax, setFineerOverheadMax] = useState(seedVasteKosten.fineer_overhead_max_per_m2)
+  const [toeslagMixmatch, setToeslagMixmatch] = useState(seedVasteKosten.toeslag_mixmatch_per_m2)
+  const [toeslagGedraaidGeschoven, setToeslagGedraaidGeschoven] = useState(seedVasteKosten.toeslag_gedraaid_geschoven_per_m2)
+  const [toeslagFotoFineerkeuze, setToeslagFotoFineerkeuze] = useState(seedVasteKosten.toeslag_foto_fineerkeuze_per_m2)
+  const [toeslagPersoonlijkFineerkeuze, setToeslagPersoonlijkFineerkeuze] = useState(seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2)
   const [hotmeltCombs, setHotmeltCombs] = useState<HotmeltCombinatie[]>([])
   const [hmForm, setHmForm] = useState({ basisplaat_id: '', categorie: 'fineer' as 'fineer' | 'hpl' })
 
@@ -911,10 +980,26 @@ export default function AdminPage() {
           setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
           setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
           setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
+          setBasisMarkupFineerHpl(get('basisplaat_markup_fineer_hpl', seedVasteKosten.basisplaat_markup_fineer_hpl))
+          setBasisMarkupKaal(get('basisplaat_markup_kaal', seedVasteKosten.basisplaat_markup_kaal))
+          setHplCalculatieFactor(get('hpl_calculatie_factor', seedVasteKosten.hpl_calculatie_factor))
+          setHplOverhead(get('hpl_overhead_per_m2', seedVasteKosten.hpl_overhead_per_m2))
+          setFineerOverheadMin(get('fineer_overhead_min_per_m2', seedVasteKosten.fineer_overhead_min_per_m2))
+          setFineerOverheadMax(get('fineer_overhead_max_per_m2', seedVasteKosten.fineer_overhead_max_per_m2))
+          setToeslagMixmatch(get('toeslag_mixmatch_per_m2', seedVasteKosten.toeslag_mixmatch_per_m2))
+          setToeslagGedraaidGeschoven(get('toeslag_gedraaid_geschoven_per_m2', seedVasteKosten.toeslag_gedraaid_geschoven_per_m2))
+          setToeslagFotoFineerkeuze(get('toeslag_foto_fineerkeuze_per_m2', seedVasteKosten.toeslag_foto_fineerkeuze_per_m2))
+          setToeslagPersoonlijkFineerkeuze(get('toeslag_persoonlijk_fineerkeuze_per_m2', seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2))
           const fhRaw = insData.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
           const kaalRaw = insData.find(i => i.sleutel === 'staffel_kaal')?.waarde
           if (fhRaw) { try { setStaffelFH(JSON.parse(fhRaw)) } catch { /* keep seed */ } }
           if (kaalRaw) { try { setStaffelKaal(JSON.parse(kaalRaw)) } catch { /* keep seed */ } }
+        }
+        const { data: staffelData } = await supabase.from('staffelregels').select('*').order('van_aantal', { ascending: true })
+        if (staffelData?.length) {
+          const fromTable = parseStaffelRows(staffelData as StaffelDbRow[])
+          if (fromTable.fineerHpl.length > 0) setStaffelFH(fromTable.fineerHpl)
+          if (fromTable.kaal.length > 0) setStaffelKaal(fromTable.kaal)
         }
         const { data: hmData } = await supabase.from('hotmelt_combinaties').select('*')
         if (hmData) setHotmeltCombs(hmData as HotmeltCombinatie[])
@@ -2020,33 +2105,37 @@ export default function AdminPage() {
 
             {/* Vaste inkoopkosten */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Vaste inkoopkosten (€/m²)</h3>
-              <p className="text-xs text-gray-400 mb-4">Deze kosten worden opgeteld bij de inkoopprijs voor de marge-berekening.</p>
-              <div className="grid sm:grid-cols-2 gap-4 max-w-lg">
-                {[
-                  { label: 'Fineerlijm', val: fineerlijm, set: setFineerlijm, key: 'fineer' },
-                  { label: 'Schuurbanden', val: schuurbanden, set: setSchuurbanden, key: 'schuur' },
-                  { label: 'HPL lijm', val: hplLijm, set: setHplLijm, key: 'hpllm' },
-                  { label: 'PU hotmelt lijm', val: puHotmelt, set: setPuHotmelt, key: 'pu' },
-                ].map(({ label, val, set, key }) => (
-                  <div key={key}>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">{label} (€/m²)</label>
-                    <input
-                      type="number"
-                      value={val}
-                      step="0.01"
-                      min="0"
-                      onChange={e => set(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                ))}
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Calculatie-instellingen</h3>
+              <p className="text-xs text-gray-400 mb-4">Deze waarden sturen dezelfde prijsopbouw aan als de configurator gebruikt.</p>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <NumberSettingInput label="Basisplaat fineer/HPL factor" value={basisMarkupFineerHpl} onChange={setBasisMarkupFineerHpl} step="0.01" />
+                <NumberSettingInput label="Basisplaat kaal factor" value={basisMarkupKaal} onChange={setBasisMarkupKaal} step="0.01" />
+                <NumberSettingInput label="HPL calculatiefactor" value={hplCalculatieFactor} onChange={setHplCalculatieFactor} step="0.01" />
+                <NumberSettingInput label="HPL overhead (€/m²)" value={hplOverhead} onChange={setHplOverhead} step="0.10" />
               </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                <NumberSettingInput label="Fineerlijm (€/m²)" value={fineerlijm} onChange={setFineerlijm} />
+                <NumberSettingInput label="Schuurbanden (€/m²)" value={schuurbanden} onChange={setSchuurbanden} />
+                <NumberSettingInput label="HPL lijm (€/m²)" value={hplLijm} onChange={setHplLijm} />
+                <NumberSettingInput label="PU hotmelt lijm (€/m²)" value={puHotmelt} onChange={setPuHotmelt} />
+              </div>
+
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                <NumberSettingInput label="Fineer overhead minimum (€/m²)" value={fineerOverheadMin} onChange={setFineerOverheadMin} />
+                <NumberSettingInput label="Fineer overhead maximum (€/m²)" value={fineerOverheadMax} onChange={setFineerOverheadMax} />
+                <NumberSettingInput label="Toeslag mixmatch (€/m²)" value={toeslagMixmatch} onChange={setToeslagMixmatch} />
+                <NumberSettingInput label="Toeslag gedraaid geschoven (€/m²)" value={toeslagGedraaidGeschoven} onChange={setToeslagGedraaidGeschoven} />
+                <NumberSettingInput label="Toeslag foto fineerkeuze (€/m²)" value={toeslagFotoFineerkeuze} onChange={setToeslagFotoFineerkeuze} />
+                <NumberSettingInput label="Toeslag persoonlijk uitzoeken (€/m²)" value={toeslagPersoonlijkFineerkeuze} onChange={setToeslagPersoonlijkFineerkeuze} />
+              </div>
+
               <button
                 onClick={saveVasteKosten}
                 className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700"
               >
-                Vaste kosten opslaan
+                Calculatie-instellingen opslaan
               </button>
             </div>
 
@@ -3116,12 +3205,15 @@ function StaffelTable({
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Van aantal</th>
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Tot aantal</th>
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Marge coëff.</th>
-          <th className="text-left py-2 px-2 font-semibold text-gray-500">Bruto marge</th>
+          <th className="text-left py-2 px-2 font-semibold text-gray-500">Prijsfactor</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {staffel.map(r => (
+        {staffel.map(r => {
+          const base = staffel[0]?.marge_coefficient || r.marge_coefficient
+          const prijsfactor = r.marge_coefficient > 0 ? Math.min(1, base / r.marge_coefficient) : 1
+          return (
           <tr key={r.id} className="border-b border-gray-100">
             <td className="py-1.5 px-2">
               <input
@@ -3153,7 +3245,7 @@ function StaffelTable({
             </td>
             <td className="py-1.5 px-2 text-sm">
               <Badge variant="info">
-                {Math.round((1 - r.marge_coefficient) * 100)}%
+                {prijsfactor.toFixed(3)} ({Math.round((1 - prijsfactor) * 100)}%)
               </Badge>
             </td>
             <td className="py-1.5 px-2">
@@ -3165,9 +3257,36 @@ function StaffelTable({
               </button>
             </td>
           </tr>
-        ))}
+          )
+        })}
       </tbody>
     </table>
+  )
+}
+
+function NumberSettingInput({
+  label,
+  value,
+  onChange,
+  step = '0.01',
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+  step?: string
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+      <input
+        type="number"
+        value={value}
+        step={step}
+        min="0"
+        onChange={e => onChange(parseFloat(e.target.value) || 0)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
   )
 }
 

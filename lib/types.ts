@@ -209,6 +209,16 @@ export interface PricingData {
   schuurbanden_per_m2: number
   hpl_lijm_per_m2: number
   pu_hotmelt_per_m2: number
+  basisplaat_markup_fineer_hpl?: number
+  basisplaat_markup_kaal?: number
+  hpl_calculatie_factor?: number
+  hpl_overhead_per_m2?: number
+  fineer_overhead_min_per_m2?: number
+  fineer_overhead_max_per_m2?: number
+  toeslag_mixmatch_per_m2?: number
+  toeslag_gedraaid_geschoven_per_m2?: number
+  toeslag_foto_fineerkeuze_per_m2?: number
+  toeslag_persoonlijk_fineerkeuze_per_m2?: number
   hotmelt_combinaties: HotmeltCombinatie[]
 }
 
