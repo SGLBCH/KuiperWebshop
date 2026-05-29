@@ -12,6 +12,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 6.6847,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 1,
   },
   {
@@ -22,6 +23,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 8.24,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 2,
   },
   {
@@ -32,6 +34,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 10.2897,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 3,
   },
   {
@@ -42,6 +45,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 11.536,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 4,
   },
   {
@@ -52,6 +56,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 12.4527,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 5,
   },
   {
@@ -62,6 +67,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 14.3685,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 6,
   },
   {
@@ -72,6 +78,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 14.6878,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 7,
   },
   {
@@ -82,6 +89,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 15.7899,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 8,
   },
   {
@@ -92,6 +100,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 15.8723,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 9,
   },
   {
@@ -102,6 +111,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 16.6963,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 10,
   },
   {
@@ -112,6 +122,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2510,
     prijs_per_m2: 21.3519,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 11,
   },
   {
@@ -122,6 +133,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 7.7147,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 12,
   },
   {
@@ -132,6 +144,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 7.7765,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 13,
   },
   {
@@ -142,6 +155,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 8.9507,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 14,
   },
   {
@@ -152,6 +166,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 9.682,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 15,
   },
   {
@@ -162,6 +177,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 11.2476,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 16,
   },
   {
@@ -172,6 +188,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 12.9883,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 17,
   },
   {
@@ -182,6 +199,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 14.9762,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 18,
   },
   {
@@ -192,6 +210,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 18.5915,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 19,
   },
   {
@@ -202,6 +221,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 20.9708,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 20,
   },
   {
@@ -212,6 +232,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 6.489,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 21,
   },
   {
@@ -222,6 +243,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 7.7147,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 22,
   },
   {
@@ -232,6 +254,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 8.8683,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 23,
   },
   {
@@ -242,6 +265,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 11.1343,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 24,
   },
   {
@@ -252,6 +276,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 12.8647,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 25,
   },
   {
@@ -262,6 +287,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 13.8741,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 26,
   },
   {
@@ -272,6 +298,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 14.832,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 27,
   },
   {
@@ -282,6 +309,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 18.4164,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 28,
   },
   {
@@ -292,6 +320,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 13.493,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 29,
   },
   {
@@ -302,6 +331,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 17.922,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 30,
   },
   {
@@ -312,6 +342,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 20.9193,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 31,
   },
   {
@@ -322,6 +353,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 24.0505,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg",
     volgorde: 32,
   },
   {
@@ -332,6 +364,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 21.6815,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-poplar-ply-fr.jpg",
     volgorde: 33,
   },
   {
@@ -342,6 +375,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 24.6582,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-poplar-ply-fr.jpg",
     volgorde: 34,
   },
   {
@@ -352,6 +386,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 28.5001,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-poplar-ply-fr.jpg",
     volgorde: 35,
   },
   {
@@ -362,6 +397,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 33.5368,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-poplar-ply-fr.jpg",
     volgorde: 36,
   },
   {
@@ -372,6 +408,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 4.9955,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 37,
   },
   {
@@ -382,6 +419,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 4.9955,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 38,
   },
   {
@@ -392,6 +430,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 6.0564,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 39,
   },
   {
@@ -402,6 +441,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 6.0564,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 40,
   },
   {
@@ -412,6 +452,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 7.0349,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 41,
   },
   {
@@ -422,6 +463,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 7.0349,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 42,
   },
   {
@@ -432,6 +474,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 7.9104,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 43,
   },
   {
@@ -442,6 +485,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 7.9104,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 44,
   },
   {
@@ -452,6 +496,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 8.8271,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 45,
   },
   {
@@ -462,6 +507,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 8.8271,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 46,
   },
   {
@@ -472,6 +518,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 9.7953,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 47,
   },
   {
@@ -482,6 +529,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 9.7953,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 48,
   },
   {
@@ -492,6 +540,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 10.6399,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 49,
   },
   {
@@ -502,6 +551,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 10.6399,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 50,
   },
   {
@@ -512,6 +562,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 12.5557,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 51,
   },
   {
@@ -522,6 +573,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 12.5557,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 52,
   },
   {
@@ -532,6 +584,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 14.2243,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 53,
   },
   {
@@ -542,6 +595,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 14.2243,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 54,
   },
   {
@@ -552,6 +606,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 16.6757,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 55,
   },
   {
@@ -562,6 +617,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 16.6757,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 56,
   },
   {
@@ -572,6 +628,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 18.9314,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 57,
   },
   {
@@ -582,6 +639,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 18.9314,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 58,
   },
   {
@@ -592,6 +650,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 21.7845,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 59,
   },
   {
@@ -602,6 +661,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 21.7845,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-queenply-marine-plywood.jpg",
     volgorde: 60,
   },
   {
@@ -612,6 +672,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 7.43,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 61,
   },
   {
@@ -622,6 +683,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 10.23,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 62,
   },
   {
@@ -632,6 +694,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 10.66,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 63,
   },
   {
@@ -642,6 +705,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 12.3,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 64,
   },
   {
@@ -652,6 +716,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 15.25,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 65,
   },
   {
@@ -662,6 +727,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 17.78,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 66,
   },
   {
@@ -672,6 +738,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 21.41,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 67,
   },
   {
@@ -682,6 +749,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 26.96,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 68,
   },
   {
@@ -692,6 +760,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 30.63,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 69,
   },
   {
@@ -702,6 +771,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 37.35,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 70,
   },
   {
@@ -712,6 +782,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 5.17,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 71,
   },
   {
@@ -722,6 +793,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 6.09,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 72,
   },
   {
@@ -732,6 +804,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 6.51,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 73,
   },
   {
@@ -742,6 +815,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 7.68,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 74,
   },
   {
@@ -752,6 +826,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 9.48,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 75,
   },
   {
@@ -762,6 +837,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 12.7,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 76,
   },
   {
@@ -772,6 +848,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 14.47,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 77,
   },
   {
@@ -782,6 +859,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 17.56,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-okoume-plywood.jpg",
     volgorde: 78,
   },
   {
@@ -792,6 +870,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 3.71,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 79,
   },
   {
@@ -802,6 +881,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 3.71,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 80,
   },
   {
@@ -812,6 +892,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 3.71,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 81,
   },
   {
@@ -822,6 +903,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 3.71,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 82,
   },
   {
@@ -832,6 +914,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 3.23,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 83,
   },
   {
@@ -842,6 +925,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 3.23,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 84,
   },
   {
@@ -852,6 +936,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 3.75,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 85,
   },
   {
@@ -862,6 +947,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 3.75,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 86,
   },
   {
@@ -872,6 +958,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 4.7,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 87,
   },
   {
@@ -882,6 +969,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 4.7,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 88,
   },
   {
@@ -892,6 +980,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 5.96,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 89,
   },
   {
@@ -902,6 +991,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 5.96,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 90,
   },
   {
@@ -912,6 +1002,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 6.71,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 91,
   },
   {
@@ -922,6 +1013,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 6.71,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 92,
   },
   {
@@ -932,6 +1024,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 8.37,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 93,
   },
   {
@@ -942,6 +1035,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 8.37,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 94,
   },
   {
@@ -952,6 +1046,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 9.94,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 95,
   },
   {
@@ -962,6 +1057,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 9.94,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 96,
   },
   {
@@ -972,6 +1068,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 11.13,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 97,
   },
   {
@@ -982,6 +1079,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 11.13,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 98,
   },
   {
@@ -992,6 +1090,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 11.92,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 99,
   },
   {
@@ -1002,6 +1101,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 11.92,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 100,
   },
   {
@@ -1012,6 +1112,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 16.33,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 101,
   },
   {
@@ -1022,6 +1123,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 16.33,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf.jpg",
     volgorde: 102,
   },
   {
@@ -1032,6 +1134,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 3.58,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 103,
   },
   {
@@ -1042,6 +1145,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 3.58,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 104,
   },
   {
@@ -1052,6 +1156,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 4.69,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 105,
   },
   {
@@ -1062,6 +1167,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 4.69,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 106,
   },
   {
@@ -1072,6 +1178,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 5.88,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 107,
   },
   {
@@ -1082,6 +1189,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 5.88,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 108,
   },
   {
@@ -1092,6 +1200,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 6.99,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 109,
   },
   {
@@ -1102,6 +1211,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 6.99,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 110,
   },
   {
@@ -1112,6 +1222,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 7.46,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 111,
   },
   {
@@ -1122,6 +1233,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 7.46,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 112,
   },
   {
@@ -1132,6 +1244,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 8.18,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 113,
   },
   {
@@ -1142,6 +1255,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 8.18,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 114,
   },
   {
@@ -1152,6 +1266,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 10.46,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 115,
   },
   {
@@ -1162,6 +1277,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 10.46,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 116,
   },
   {
@@ -1172,6 +1288,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 12.41,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 117,
   },
   {
@@ -1182,6 +1299,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 12.41,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 118,
   },
   {
@@ -1192,6 +1310,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 14.9,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 119,
   },
   {
@@ -1202,6 +1321,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 14.9,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 120,
   },
   {
@@ -1212,6 +1332,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 18.33,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 121,
   },
   {
@@ -1222,6 +1343,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 18.33,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-v313.jpg",
     volgorde: 122,
   },
   {
@@ -1232,6 +1354,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 8.18,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-black.jpg",
     volgorde: 123,
   },
   {
@@ -1242,6 +1365,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 10.46,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-black.jpg",
     volgorde: 124,
   },
   {
@@ -1252,6 +1376,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 13.27,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-black.jpg",
     volgorde: 125,
   },
   {
@@ -1262,6 +1387,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 14.92,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-black.jpg",
     volgorde: 126,
   },
   {
@@ -1272,6 +1398,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 22.09,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-mdf-black.jpg",
     volgorde: 127,
   },
   {
@@ -1282,6 +1409,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 5.87,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 128,
   },
   {
@@ -1292,6 +1420,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 5.87,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 129,
   },
   {
@@ -1302,6 +1431,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 7.7,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 130,
   },
   {
@@ -1312,6 +1442,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 7.7,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 131,
   },
   {
@@ -1322,6 +1453,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 9.61,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 132,
   },
   {
@@ -1332,6 +1464,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 9.61,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 133,
   },
   {
@@ -1342,6 +1475,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 11.45,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 134,
   },
   {
@@ -1352,6 +1486,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 11.45,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 135,
   },
   {
@@ -1362,6 +1497,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 12.2,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 136,
   },
   {
@@ -1372,6 +1508,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 12.2,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 137,
   },
   {
@@ -1382,6 +1519,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 13.74,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 138,
   },
   {
@@ -1392,6 +1530,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 13.74,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 139,
   },
   {
@@ -1402,6 +1541,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 17.12,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 140,
   },
   {
@@ -1412,6 +1552,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 17.12,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 141,
   },
   {
@@ -1422,6 +1563,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 20.32,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 142,
   },
   {
@@ -1432,6 +1574,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 20.32,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 143,
   },
   {
@@ -1442,6 +1585,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 24.38,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 144,
   },
   {
@@ -1452,6 +1596,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 24.38,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-mdf-fr.jpg",
     volgorde: 145,
   },
   {
@@ -1532,6 +1677,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 11.25,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 153,
   },
   {
@@ -1542,6 +1688,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 12.0,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 154,
   },
   {
@@ -1552,6 +1699,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 12.66,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 155,
   },
   {
@@ -1562,6 +1710,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 16.16,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 156,
   },
   {
@@ -1572,6 +1721,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 17.55,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 157,
   },
   {
@@ -1582,6 +1732,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 20.39,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 158,
   },
   {
@@ -1592,6 +1743,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 24.05,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 159,
   },
   {
@@ -1602,6 +1754,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 27.49,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 160,
   },
   {
@@ -1612,6 +1765,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 30.92,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 161,
   },
   {
@@ -1622,6 +1776,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 19.7,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 162,
   },
   {
@@ -1632,6 +1787,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 23.32,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 163,
   },
   {
@@ -1642,6 +1798,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 26.57,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 164,
   },
   {
@@ -1652,6 +1809,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 28.84,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 165,
   },
   {
@@ -1662,6 +1820,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 33.18,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 166,
   },
   {
@@ -1672,6 +1831,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 37.94,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 167,
   },
   {
@@ -1682,6 +1842,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 3050,
     prijs_per_m2: 42.67,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-birch-plywood.jpg",
     volgorde: 168,
   },
   {
@@ -1692,6 +1853,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 18.77,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-fipro-b15.jpg",
     volgorde: 169,
   },
   {
@@ -1702,6 +1864,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 20.05,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-fipro-b15.jpg",
     volgorde: 170,
   },
   {
@@ -1712,6 +1875,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 23.58,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-fipro-b15.jpg",
     volgorde: 171,
   },
   {
@@ -1722,6 +1886,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 26.07,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-protect-fipro-b15.jpg",
     volgorde: 172,
   },
   {
@@ -1732,6 +1897,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 8.28,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/05/kuiper-holland-basic-ceiba-bending-ply.jpg",
     volgorde: 173,
   },
   {
@@ -1742,6 +1908,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 10.65,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/05/kuiper-holland-basic-ceiba-bending-ply.jpg",
     volgorde: 174,
   },
   {
@@ -1752,6 +1919,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 4.89,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-bending-ply.jpg",
     volgorde: 175,
   },
   {
@@ -1762,6 +1930,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2500,
     prijs_per_m2: 8.5,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-bending-ply.jpg",
     volgorde: 176,
   },
   {
@@ -1772,6 +1941,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 18.0,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/03/kuiper-holland-air-balsa-w80.jpg",
     volgorde: 177,
   },
   {
@@ -1782,6 +1952,7 @@ export const seedBaseplaten: Baseplaat[] = [
     lengte_mm: 2440,
     prijs_per_m2: 22.0,
     beschikbaar: true,
+    gallery_foto_url: "https://kuiperholland.nl/wp-content/uploads/2018/03/kuiper-holland-air-balsa-w80.jpg",
     volgorde: 178,
   },
   {
