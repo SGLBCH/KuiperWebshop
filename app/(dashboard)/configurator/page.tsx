@@ -134,11 +134,12 @@ export default function ConfiguratorPage() {
   const [creatingList, setCreatingList] = useState(false)
   const [m2Input, setM2Input] = useState('')
   const [openBaseplaatGroups, setOpenBaseplaatGroups] = useState<Record<string, boolean>>({
-    multiplex: true,
+    multiplex: false,
     mdf: false,
     spaan: false,
     overig: false,
   })
+  const [openAfmetingLengths, setOpenAfmetingLengths] = useState<Record<string, boolean>>({})
   const [voegInfoOpen, setVoegInfoOpen] = useState(false)
 
   // Catalog state — loaded from Supabase, fallback to seed
@@ -338,6 +339,26 @@ export default function ConfiguratorPage() {
     }
     if (step === 6) return state.aantal > 0
     return true
+  }
+
+  function selectAfmeting(p: Baseplaat) {
+    setOpenAfmetingLengths(groups => ({ ...groups, [String(p.lengte_mm)]: true }))
+    setState(s => {
+      const newState = { ...s, afmeting: p, basisplaat: p }
+      newState.bewerkingen = s.bewerkingen.filter(b =>
+        !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id) &&
+        !isNietIngesloten(insluitingen, 'basisplaat', p.id, 'bewerking', b.id)
+      )
+      if (s.fineer_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id)))
+        newState.fineer_voor = undefined
+      if (s.fineer_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id)))
+        newState.fineer_tegen = undefined
+      if (s.hpl_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id)))
+        newState.hpl_voor = undefined
+      if (s.hpl_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id)))
+        newState.hpl_tegen = undefined
+      return newState
+    })
   }
 
   async function saveRegel(keepListForNext?: boolean) {
@@ -548,7 +569,10 @@ export default function ConfiguratorPage() {
                         return (
                           <button
                             key={naam}
-                            onClick={() => setState(s => ({ ...s, basisplaat: variants[0], afmeting: undefined }))}
+                            onClick={() => {
+                              setOpenAfmetingLengths({})
+                              setState(s => ({ ...s, basisplaat: variants[0], afmeting: undefined }))
+                            }}
                             className={`relative p-3 rounded-lg border text-left transition-all hover:shadow-sm
                               ${isSelected ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]' : 'border-stone-200 hover:border-[var(--color-primary-muted)]'}`}
                           >
@@ -588,88 +612,69 @@ export default function ConfiguratorPage() {
             <p className="text-sm text-gray-500 mb-6">Selecteer de dikte en plaatgrootte.</p>
 
             {(() => {
-              const plaatVariants = baseplaten.filter(p => p.naam === state.basisplaat?.naam)
-              const langPlaaten = plaatVariants.filter(p => p.lengte_mm > 2800)
-              const kortPlaaten = plaatVariants.filter(p => p.lengte_mm <= 2800)
+              const plaatVariants = baseplaten
+                .filter(p => p.naam === state.basisplaat?.naam)
+                .sort((a, b) => a.lengte_mm - b.lengte_mm || a.dikte_mm - b.dikte_mm || a.breedte_mm - b.breedte_mm)
+              const lengthGroups = Object.entries(
+                plaatVariants.reduce<Record<string, Baseplaat[]>>((acc, p) => {
+                  const key = String(p.lengte_mm)
+                  if (!acc[key]) acc[key] = []
+                  acc[key].push(p)
+                  return acc
+                }, {})
+              ).sort(([a], [b]) => Number(a) - Number(b))
 
               return (
-                <div className="space-y-6">
-                  {kortPlaaten.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900 mb-3">
-                        Korte platen (≤2800mm)
-                      </h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {kortPlaaten.map(p => {
-                          const isSelected = state.afmeting?.id === p.id
-                          return (
-                            <button
-                              key={p.id}
-                              onClick={() => setState(s => {
-                                const newState = { ...s, afmeting: p, basisplaat: p }
-                                newState.bewerkingen = s.bewerkingen.filter(b =>
-                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id) &&
-                                  !isNietIngesloten(insluitingen, 'basisplaat', p.id, 'bewerking', b.id)
-                                )
-                                if (s.fineer_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id)))
-                                  newState.fineer_voor = undefined
-                                if (s.fineer_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id)))
-                                  newState.fineer_tegen = undefined
-                                if (s.hpl_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id)))
-                                  newState.hpl_voor = undefined
-                                if (s.hpl_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id)))
-                                  newState.hpl_tegen = undefined
-                                return newState
-                              })}
-                              className={`p-4 rounded-xl border-2 text-left transition-all
-                                ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
-                            >
-                              <p className="text-2xl font-bold text-gray-800">{p.dikte_mm}<span className="text-base font-normal">mm</span></p>
-                              <p className="text-xs text-gray-500 mt-0.5">{p.breedte_mm}×{p.lengte_mm}mm</p>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {langPlaaten.length > 0 && (
-                    <div>
-                      <h3 className="text-base font-semibold text-gray-900 mb-3">
-                        Lange platen (&gt;2800mm)
-                      </h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {langPlaaten.map(p => {
-                          const isSelected = state.afmeting?.id === p.id
-                          return (
-                            <button
-                              key={p.id}
-                              onClick={() => setState(s => {
-                                const newState = { ...s, afmeting: p, basisplaat: p }
-                                newState.bewerkingen = s.bewerkingen.filter(b =>
-                                  !isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'bewerking', b.id) &&
-                                  !isNietIngesloten(insluitingen, 'basisplaat', p.id, 'bewerking', b.id)
-                                )
-                                if (s.fineer_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_voor.id)))
-                                  newState.fineer_voor = undefined
-                                if (s.fineer_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'fineer', s.fineer_tegen.id)))
-                                  newState.fineer_tegen = undefined
-                                if (s.hpl_voor && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_voor.id)))
-                                  newState.hpl_voor = undefined
-                                if (s.hpl_tegen && (isUitgesloten(uitsluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id) || isNietIngesloten(insluitingen, 'basisplaat', p.id, 'hpl', s.hpl_tegen.id)))
-                                  newState.hpl_tegen = undefined
-                                return newState
-                              })}
-                              className={`p-4 rounded-xl border-2 text-left transition-all
-                                ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
-                            >
-                              <p className="text-2xl font-bold text-gray-800">{p.dikte_mm}<span className="text-base font-normal">mm</span></p>
-                              <p className="text-xs text-gray-500 mt-0.5">{p.breedte_mm}×{p.lengte_mm}mm</p>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+                <div className="space-y-3">
+                  {lengthGroups.map(([lengthKey, variants]) => {
+                    const lengthMm = Number(lengthKey)
+                    const isOpen = !!openAfmetingLengths[lengthKey]
+                    const hasSelected = variants.some(p => state.afmeting?.id === p.id)
+                    const labelCm = Number.isInteger(lengthMm / 10)
+                      ? `${lengthMm / 10} cm`
+                      : `${(lengthMm / 10).toFixed(1)} cm`
+
+                    return (
+                      <section key={lengthKey} className="rounded-lg border border-stone-200 bg-white">
+                        <button
+                          type="button"
+                          onClick={() => setOpenAfmetingLengths(groups => ({ ...groups, [lengthKey]: !groups[lengthKey] }))}
+                          className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-stone-50 rounded-lg"
+                        >
+                          <span>
+                            <span className="block text-sm font-semibold text-stone-900">
+                              Lengte {labelCm}
+                              {hasSelected && <span className="ml-2 text-xs font-normal text-blue-600">geselecteerd</span>}
+                            </span>
+                            <span className="text-xs text-stone-500">
+                              {variants.length} plaatvariant{variants.length !== 1 ? 'en' : ''}
+                            </span>
+                          </span>
+                          <svg className={`w-4 h-4 text-stone-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {isOpen && (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 pt-0">
+                            {variants.map(p => {
+                              const isSelected = state.afmeting?.id === p.id
+                              return (
+                                <button
+                                  key={p.id}
+                                  onClick={() => selectAfmeting(p)}
+                                  className={`p-4 rounded-xl border-2 text-left transition-all
+                                    ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+                                >
+                                  <p className="text-2xl font-bold text-gray-800">{p.dikte_mm}<span className="text-base font-normal">mm</span></p>
+                                  <p className="text-xs text-gray-500 mt-0.5">{p.breedte_mm}×{p.lengte_mm}mm</p>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </section>
+                    )
+                  })}
                 </div>
               )
             })()}
