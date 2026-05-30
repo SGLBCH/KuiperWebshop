@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { Badge } from '@/components/ui/Badge'
 import {
@@ -425,6 +425,9 @@ export default function AdminPage() {
   const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
   const [fineers, setFineers] = useState<Fineer[]>(seedFineers)
   const [hplList, setHplList] = useState<HPL[]>(seedHPL)
+  const [priceFilters, setPriceFilters] = useState({ baseplaten: '', fineers: '', hpl: '' })
+  const [priceSortAsc, setPriceSortAsc] = useState({ baseplaten: true, fineers: true, hpl: true })
+  const [priceSectionsOpen, setPriceSectionsOpen] = useState({ baseplaten: true, fineers: true, hpl: true })
 
   // CRUD modal state
   type ModalType = 'baseplaat' | 'fineer' | 'hpl' | null
@@ -1550,6 +1553,37 @@ export default function AdminPage() {
     input.click()
   }
 
+  const filteredBaseplaten = useMemo(() => {
+    const filter = priceFilters.baseplaten.trim().toLowerCase()
+    return [...baseplaten]
+      .filter(p => !filter || p.naam.toLowerCase().includes(filter))
+      .sort((a, b) => {
+        const byName = a.naam.localeCompare(b.naam, 'nl', { sensitivity: 'base' })
+        const result = byName || a.dikte_mm - b.dikte_mm || a.breedte_mm - b.breedte_mm || a.lengte_mm - b.lengte_mm
+        return priceSortAsc.baseplaten ? result : -result
+      })
+  }, [baseplaten, priceFilters.baseplaten, priceSortAsc.baseplaten])
+
+  const filteredFineers = useMemo(() => {
+    const filter = priceFilters.fineers.trim().toLowerCase()
+    return [...fineers]
+      .filter(f => !filter || f.naam.toLowerCase().includes(filter))
+      .sort((a, b) => {
+        const result = a.naam.localeCompare(b.naam, 'nl', { sensitivity: 'base' })
+        return priceSortAsc.fineers ? result : -result
+      })
+  }, [fineers, priceFilters.fineers, priceSortAsc.fineers])
+
+  const filteredHplList = useMemo(() => {
+    const filter = priceFilters.hpl.trim().toLowerCase()
+    return [...hplList]
+      .filter(h => !filter || h.kleur.toLowerCase().includes(filter))
+      .sort((a, b) => {
+        const result = a.kleur.localeCompare(b.kleur, 'nl', { sensitivity: 'base' })
+        return priceSortAsc.hpl ? result : -result
+      })
+  }, [hplList, priceFilters.hpl, priceSortAsc.hpl])
+
   if (loadingData) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -1840,9 +1874,17 @@ export default function AdminPage() {
             {pricingMigrationMissing && <PricingMigrationWarning />}
 
             {/* Basisplaten */}
-            <div>
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Basisplaten</h3>
+                <button
+                  type="button"
+                  onClick={() => setPriceSectionsOpen(s => ({ ...s, baseplaten: !s.baseplaten }))}
+                  className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wider px-4 pt-4"
+                >
+                  <span className={`text-gray-400 transition-transform ${priceSectionsOpen.baseplaten ? 'rotate-90' : ''}`}>›</span>
+                  Basisplaten
+                  <span className="text-xs font-normal normal-case tracking-normal text-gray-400">({filteredBaseplaten.length}/{baseplaten.length})</span>
+                </button>
                 <div className="flex gap-2">
                   <button
                     onClick={() => openAdd('baseplaat')}
@@ -1864,11 +1906,37 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              {priceSectionsOpen.baseplaten && (
+              <div className="px-4 pb-4">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="search"
+                    value={priceFilters.baseplaten}
+                    onChange={e => setPriceFilters(f => ({ ...f, baseplaten: e.target.value }))}
+                    placeholder="Filter op naam, bv. MDF standaard"
+                    className="w-72 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPriceSortAsc(s => ({ ...s, baseplaten: !s.baseplaten }))}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+                  >
+                    Naam {priceSortAsc.baseplaten ? 'A-Z' : 'Z-A'}
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Naam</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">
+                        <button
+                          type="button"
+                          onClick={() => setPriceSortAsc(s => ({ ...s, baseplaten: !s.baseplaten }))}
+                          className="hover:text-gray-800"
+                        >
+                          Naam {priceSortAsc.baseplaten ? '↑' : '↓'}
+                        </button>
+                      </th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Dikte</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Breedte</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Lengte</th>
@@ -1878,7 +1946,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {baseplaten.map(p => (
+                    {filteredBaseplaten.map(p => (
                       <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-2 px-2 font-medium">{p.naam}</td>
                         <td className="py-2 px-2 text-right text-gray-600">{p.dikte_mm}mm</td>
@@ -1921,13 +1989,23 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
+              )}
             </div>
 
             {/* Fineers */}
-            <div>
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Fineers</h3>
+                <button
+                  type="button"
+                  onClick={() => setPriceSectionsOpen(s => ({ ...s, fineers: !s.fineers }))}
+                  className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wider px-4 pt-4"
+                >
+                  <span className={`text-gray-400 transition-transform ${priceSectionsOpen.fineers ? 'rotate-90' : ''}`}>›</span>
+                  Fineers
+                  <span className="text-xs font-normal normal-case tracking-normal text-gray-400">({filteredFineers.length}/{fineers.length})</span>
+                </button>
                 <div className="flex gap-2">
                   <button
                     onClick={() => openAdd('fineer')}
@@ -1949,11 +2027,37 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              {priceSectionsOpen.fineers && (
+              <div className="px-4 pb-4">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="search"
+                    value={priceFilters.fineers}
+                    onChange={e => setPriceFilters(f => ({ ...f, fineers: e.target.value }))}
+                    placeholder="Filter op fineernaam"
+                    className="w-72 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPriceSortAsc(s => ({ ...s, fineers: !s.fineers }))}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+                  >
+                    Naam {priceSortAsc.fineers ? 'A-Z' : 'Z-A'}
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Naam</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">
+                        <button
+                          type="button"
+                          onClick={() => setPriceSortAsc(s => ({ ...s, fineers: !s.fineers }))}
+                          className="hover:text-gray-800"
+                        >
+                          Naam {priceSortAsc.fineers ? '↑' : '↓'}
+                        </button>
+                      </th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Voor lang</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Voor kort</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Tegen lang</th>
@@ -1969,7 +2073,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {fineers.map(f => (
+                    {filteredFineers.map(f => (
                       <tr key={f.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-2 px-2 font-medium">{f.naam}</td>
                         {[
@@ -2042,13 +2146,23 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
+              )}
             </div>
 
             {/* HPL */}
-            <div>
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">HPL</h3>
+                <button
+                  type="button"
+                  onClick={() => setPriceSectionsOpen(s => ({ ...s, hpl: !s.hpl }))}
+                  className="flex items-center gap-2 text-sm font-semibold text-gray-700 uppercase tracking-wider px-4 pt-4"
+                >
+                  <span className={`text-gray-400 transition-transform ${priceSectionsOpen.hpl ? 'rotate-90' : ''}`}>›</span>
+                  HPL
+                  <span className="text-xs font-normal normal-case tracking-normal text-gray-400">({filteredHplList.length}/{hplList.length})</span>
+                </button>
                 <div className="flex gap-2">
                   <button
                     onClick={() => openAdd('hpl')}
@@ -2070,11 +2184,37 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-              <div className="overflow-x-auto">
+              {priceSectionsOpen.hpl && (
+              <div className="px-4 pb-4">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <input
+                    type="search"
+                    value={priceFilters.hpl}
+                    onChange={e => setPriceFilters(f => ({ ...f, hpl: e.target.value }))}
+                    placeholder="Filter op HPL-kleur"
+                    className="w-72 max-w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPriceSortAsc(s => ({ ...s, hpl: !s.hpl }))}
+                    className="px-3 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+                  >
+                    Kleur {priceSortAsc.hpl ? 'A-Z' : 'Z-A'}
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      <th className="text-left py-2 px-2 font-semibold text-gray-500">Kleur</th>
+                      <th className="text-left py-2 px-2 font-semibold text-gray-500">
+                        <button
+                          type="button"
+                          onClick={() => setPriceSortAsc(s => ({ ...s, hpl: !s.hpl }))}
+                          className="hover:text-gray-800"
+                        >
+                          Kleur {priceSortAsc.hpl ? '↑' : '↓'}
+                        </button>
+                      </th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">€ lang</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">€ kort</th>
                       <th className="text-right py-2 px-2 font-semibold text-gray-500">Plaat B lang</th>
@@ -2084,7 +2224,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {hplList.map(h => (
+                    {filteredHplList.map(h => (
                       <tr key={h.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-2 px-2 font-medium">{h.kleur}</td>
                         <td className="py-2 px-2 text-right">
@@ -2132,7 +2272,9 @@ export default function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
+              )}
             </div>
 
             <button
