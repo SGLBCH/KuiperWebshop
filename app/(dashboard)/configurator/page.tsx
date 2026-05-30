@@ -229,18 +229,16 @@ export default function ConfiguratorPage() {
         supabase.from('hotmelt_combinaties').select('*'),
       ])
 
-      // Prefer the workbook-backed catalog unless Supabase clearly contains a
-      // full production catalog. This prevents older demo rows from silently
-      // overriding the calibrated Codex V1 price data on deploys.
-      if (bpRes.data?.length && bpRes.data.length >= 40) setBaseplaten(bpRes.data)
-      else setBaseplaten(seedBaseplaten)
-      if (fnRes.data?.length && fnRes.data.length >= 80) setFineers(fnRes.data)
-      else setFineers(seedFineers)
-      if (hplRes.data?.length) setHplList(hplRes.data)
+      // In a real Supabase session we must only expose database rows here.
+      // Seed IDs are readable demo keys, but orderlijst_regels stores UUID
+      // foreign keys; mixing the two causes invalid UUID errors when saving.
+      setBaseplaten((bpRes.data ?? []) as Baseplaat[])
+      setFineers((fnRes.data ?? []) as Fineer[])
+      setHplList((hplRes.data ?? []) as HPL[])
+      if (bwRes.data) setBewerkingen(bwRes.data as Bewerking[])
       if (uitRes.data) setUitsluitingen(uitRes.data as UitsluitingRow[])
       if (inslRes.data) setInsluitingen(inslRes.data as InsluitingRow[])
       if (bwRes.data?.length) {
-        setBewerkingen(bwRes.data)
         // Pre-select standaard bewerkingen for fresh configurations
         setState(s => s.bewerkingen.length === 0
           ? { ...s, bewerkingen: bwRes.data.filter((b: Bewerking) => b.standaard_geselecteerd) }
