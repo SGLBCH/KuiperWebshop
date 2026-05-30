@@ -31,7 +31,7 @@ CREATE INDEX idx_profiles_rol    ON public.profiles(rol);
 CREATE TABLE IF NOT EXISTS public.baseplaten (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   naam         TEXT NOT NULL,
-  dikte_mm     INTEGER NOT NULL,
+  dikte_mm     NUMERIC(6,2) NOT NULL,
   breedte_mm   INTEGER NOT NULL,
   lengte_mm    INTEGER NOT NULL,
   prijs_per_m2 NUMERIC(10,2) NOT NULL,
