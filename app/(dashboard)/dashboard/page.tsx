@@ -12,7 +12,7 @@ import {
   seedStaffelKaal,
 } from '@/lib/seed-data'
 import type { Orderlijst, Baseplaat, Fineer, HPL, Bewerking, StaffelRegel, PricingData, HotmeltCombinatie } from '@/lib/types'
-import { calculatePrice, getMargeCoefficient } from '@/lib/pricing'
+import { calculatePrice, getMargeCoefficient, getStaffelDisplayMultiplier } from '@/lib/pricing'
 import toast from 'react-hot-toast'
 
 type OrderlijstRegel = {
@@ -64,7 +64,7 @@ type CatalogCache = {
   hotmeltCombs: HotmeltCombinatie[]
 }
 
-type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null }
+type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null; multiplier?: number | null }
 
 function parseStaffelRows(rows: StaffelDbRow[]) {
   const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
@@ -74,6 +74,7 @@ function parseStaffelRows(rows: StaffelDbRow[]) {
       van_aantal: row.van_aantal,
       tot_aantal: row.tot_aantal,
       marge_coefficient: row.marge_coefficient,
+      multiplier: typeof row.multiplier === 'number' ? row.multiplier : undefined,
     }
   }
   return {
@@ -383,6 +384,8 @@ export default function DashboardPage() {
     // 2. Zoek de juiste marge_coëfficiënt op per categorie
     const coeffFH = getMargeCoefficient(totaalFH, catalog.staffelFH)
     const coeffKaal = getMargeCoefficient(totaalKaal, catalog.staffelKaal)
+    const multiplierFH = getStaffelDisplayMultiplier(totaalFH, catalog.staffelFH)
+    const multiplierKaal = getStaffelDisplayMultiplier(totaalKaal, catalog.staffelKaal)
 
     // 3. Herbereken elke regel
     return regels.map(regel => {
@@ -390,10 +393,11 @@ export default function DashboardPage() {
       if (!plaat || regel.aantal <= 0) return regel
 
       const coeff = regel.categorie === 'kaal' ? coeffKaal : coeffFH
+      const multiplier = regel.categorie === 'kaal' ? multiplierKaal : multiplierFH
 
       // Één-rij staffel met exact het berekende coëfficiënt
       const mockStaffel: StaffelRegel[] = [
-        { id: '_mock', van_aantal: 1, tot_aantal: null, marge_coefficient: coeff },
+        { id: '_mock', van_aantal: 1, tot_aantal: null, marge_coefficient: coeff, multiplier },
       ]
 
       // PricingData — verzending op 99999999 want die berekenen we apart op orderniveau

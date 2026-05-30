@@ -21,7 +21,7 @@ import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel,
 // ─── Types ────────────────────────────────────────────────────────────────────
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
-type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null }
+type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null; multiplier?: number | null }
 
 function parseStaffelRows(rows: StaffelDbRow[]) {
   const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
@@ -31,6 +31,7 @@ function parseStaffelRows(rows: StaffelDbRow[]) {
       van_aantal: row.van_aantal,
       tot_aantal: row.tot_aantal,
       marge_coefficient: row.marge_coefficient,
+      multiplier: typeof row.multiplier === 'number' ? row.multiplier : undefined,
     }
   }
   return {

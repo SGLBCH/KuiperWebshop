@@ -81,6 +81,7 @@ export interface StaffelRegel {
   van_aantal: number
   tot_aantal: number | null       // null = onbeperkt
   marge_coefficient: number
+  multiplier?: number             // directe prijsfactor/korting voor de calculator
 }
 
 export interface HotmeltCombinatie {

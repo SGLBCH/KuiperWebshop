@@ -4768,17 +4768,17 @@ export const seedBewerkingen: Bewerking[] = [
 // ─── Staffel ───────────────────────────────────────────────────────────────────
 // These coefficients are converted to display multipliers by lib/pricing.ts.
 export const seedStaffelFineerHPL: StaffelRegel[] = [
-  { id: 'sf-1', van_aantal: 1,  tot_aantal: 9,    marge_coefficient: 0.65 },
-  { id: 'sf-2', van_aantal: 10, tot_aantal: 24,   marge_coefficient: 0.70 },
-  { id: 'sf-3', van_aantal: 25, tot_aantal: 49,   marge_coefficient: 0.75 },
-  { id: 'sf-4', van_aantal: 50, tot_aantal: null, marge_coefficient: 0.80 },
+  { id: 'sf-1', van_aantal: 1,  tot_aantal: 9,    marge_coefficient: 0.6500, multiplier: 1.0000 },
+  { id: 'sf-2', van_aantal: 10, tot_aantal: 24,   marge_coefficient: 0.6633, multiplier: 0.9800 },
+  { id: 'sf-3', van_aantal: 25, tot_aantal: 49,   marge_coefficient: 0.6915, multiplier: 0.9400 },
+  { id: 'sf-4', van_aantal: 50, tot_aantal: null, marge_coefficient: 0.7065, multiplier: 0.9200 },
 ]
 
 export const seedStaffelKaal: StaffelRegel[] = [
-  { id: 'sk-1', van_aantal: 1,  tot_aantal: 9,    marge_coefficient: 0.80 },
-  { id: 'sk-2', van_aantal: 10, tot_aantal: 24,   marge_coefficient: 0.82 },
-  { id: 'sk-3', van_aantal: 25, tot_aantal: 49,   marge_coefficient: 0.84 },
-  { id: 'sk-4', van_aantal: 50, tot_aantal: null, marge_coefficient: 0.86 },
+  { id: 'sk-1', van_aantal: 1,  tot_aantal: 9,    marge_coefficient: 0.8000, multiplier: 1.0000 },
+  { id: 'sk-2', van_aantal: 10, tot_aantal: 24,   marge_coefficient: 0.8163, multiplier: 0.9800 },
+  { id: 'sk-3', van_aantal: 25, tot_aantal: 49,   marge_coefficient: 0.8333, multiplier: 0.9600 },
+  { id: 'sk-4', van_aantal: 50, tot_aantal: null, marge_coefficient: 0.8511, multiplier: 0.9400 },
 ]
 
 export const seedVasteKosten = {

@@ -18,6 +18,40 @@ export function getMargeCoefficient(aantal: number, staffel: StaffelRegel[]): nu
 // Keep old name as alias for backward compat
 export const getMultiplier = getMargeCoefficient
 
+const HISTORICAL_TARGET_MULTIPLIER = 1.10
+const BASEPLAAT_HISTORY_MULTIPLIERS: Record<string, number> = {
+  'MDF': 1.068,
+  'MDF V313 (Vochtwerend)': 1.201,
+  'Queenply': 1.021,
+  'Populieren': 1.146,
+  'MDF Zwart': 1.135,
+  'HDF': 1.010,
+  'Buigtriplex': 1.000,
+}
+
+const FINEER_HISTORY_MULTIPLIERS: Record<string, number> = {
+  'noten amerikaans': 1.044,
+  'essen': 1.171,
+  'khaya mahonie': 1.077,
+  'eucalyptus gerookt': 1.135,
+  'berken': 1.146,
+  'teak': 1.000,
+  'bamboe side caramel': 1.063,
+  'bamboe plain caramel': 1.046,
+  'kersen amerikaans': 1.158,
+  'olijfessen': 1.147,
+  'iroko': 1.124,
+  'beuken gestoomd': 1.171,
+  'wenge': 1.219,
+  'canadian maple': 1.247,
+  'anigre': 2.196,
+  'eucalyptus naturel': 1.170,
+  'oregon pine': 1.011,
+  'vuren': 1.187,
+  'macore': 1.000,
+  'lariks': 1.212,
+}
+
 export function calculatePrice(
   state: ConfiguratorState,
   pricing: PricingData
@@ -107,9 +141,10 @@ export function calculatePrice(
   // ── Subtotalen ──
   const basisplaat_bruto = basis_per_m2 * totaal_m2
   const afwerking_bruto = afwerking_per_m2 * totaal_m2
-  const materiaal_basis = basisplaat_bruto + afwerking_bruto
-  const basisplaat_kosten = basisplaat_bruto * staffel_multiplier
-  const afwerking_kosten = afwerking_bruto * staffel_multiplier
+  const history_multiplier = getHistoryCalibrationMultiplier(categorie, plaat, fineer_voor, fineer_tegen)
+  const materiaal_basis = (basisplaat_bruto + afwerking_bruto) * history_multiplier
+  const basisplaat_kosten = basisplaat_bruto * history_multiplier * staffel_multiplier
+  const afwerking_kosten = afwerking_bruto * history_multiplier * staffel_multiplier
   const materiaal_staffel = basisplaat_kosten + afwerking_kosten
   const staffel_korting = materiaal_basis - materiaal_staffel
 
@@ -155,7 +190,18 @@ function emptyResult(): PriceResult {
   }
 }
 
-function getStaffelDisplayMultiplier(aantal: number, staffel: StaffelRegel[]): number {
+export function getStaffelDisplayMultiplier(aantal: number, staffel: StaffelRegel[]): number {
+  const selected = [...(staffel ?? [])]
+    .sort((a, b) => a.van_aantal - b.van_aantal)
+    .find(regel =>
+      aantal >= regel.van_aantal
+      && (regel.tot_aantal === null || aantal <= regel.tot_aantal)
+    )
+
+  if (selected && typeof selected.multiplier === 'number' && selected.multiplier > 0) {
+    return Math.min(1, selected.multiplier)
+  }
+
   const current = getMargeCoefficient(aantal, staffel)
   const sorted = [...(staffel ?? [])].sort((a, b) => a.van_aantal - b.van_aantal)
   const base = sorted[0]?.marge_coefficient ?? current
@@ -171,6 +217,42 @@ function getStaffelDisplayMultiplier(aantal: number, staffel: StaffelRegel[]): n
   }
 
   return Math.min(1, current)
+}
+
+function getHistoryCalibrationMultiplier(
+  categorie: ConfiguratorState['categorie'],
+  plaat: NonNullable<ConfiguratorState['basisplaat']>,
+  fineerVoor?: ConfiguratorState['fineer_voor'],
+  fineerTegen?: ConfiguratorState['fineer_tegen']
+): number {
+  const baseMultiplier = BASEPLAAT_HISTORY_MULTIPLIERS[plaat.naam] ?? 1.05
+
+  if (categorie !== 'fineer') {
+    return Math.max(1.05, baseMultiplier)
+  }
+
+  const fineerMultipliers = [fineerVoor, fineerTegen]
+    .map(fineer => fineer ? getFineerHistoryMultiplier(fineer.naam) : null)
+    .filter((value): value is number => typeof value === 'number')
+
+  const fineerMultiplier = fineerMultipliers.length > 0
+    ? fineerMultipliers.reduce((sum, value) => sum + value, 0) / fineerMultipliers.length
+    : HISTORICAL_TARGET_MULTIPLIER
+
+  return Math.max(HISTORICAL_TARGET_MULTIPLIER, baseMultiplier, fineerMultiplier)
+}
+
+function getFineerHistoryMultiplier(naam: string): number {
+  return FINEER_HISTORY_MULTIPLIERS[getFineerHistoryKey(naam)] ?? HISTORICAL_TARGET_MULTIPLIER
+}
+
+function getFineerHistoryKey(naam: string): string {
+  return naam
+    .toLowerCase()
+    .replace(/\b(a|b)\b$/u, '')
+    .replace(/\b(33|35|37|38)\b$/u, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function getFineerOverheadPerM2(input: {

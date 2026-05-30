@@ -30,7 +30,7 @@ type AdminTab =
 
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
-type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null }
+type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null; multiplier?: number | null }
 type SupabaseErrorLike = { code?: string; message?: string } | null | undefined
 
 function isMissingColumnError(error: SupabaseErrorLike) {
@@ -50,12 +50,24 @@ function parseStaffelRows(rows: StaffelDbRow[]) {
       van_aantal: row.van_aantal,
       tot_aantal: row.tot_aantal,
       marge_coefficient: row.marge_coefficient,
+      multiplier: typeof row.multiplier === 'number' ? row.multiplier : undefined,
     }
   }
   return {
     fineerHpl: rows.filter(row => row.type === 'fineer_hpl').map(toRegel).filter((row): row is StaffelRegel => row !== null),
     kaal: rows.filter(row => row.type === 'kaal').map(toRegel).filter((row): row is StaffelRegel => row !== null),
   }
+}
+
+function cloneStaffel(staffel: StaffelRegel[]): StaffelRegel[] {
+  return staffel.map(row => ({ ...row }))
+}
+
+function getStaffelPrijsfactor(staffel: StaffelRegel[], row: StaffelRegel) {
+  if (typeof row.multiplier === 'number' && row.multiplier > 0) return Math.min(1, row.multiplier)
+  const sorted = [...staffel].sort((a, b) => a.van_aantal - b.van_aantal)
+  const base = sorted[0]?.marge_coefficient || row.marge_coefficient
+  return row.marge_coefficient > 0 ? Math.min(1, base / row.marge_coefficient) : 1
 }
 
 const DEMO_AANMELDINGEN = [
@@ -730,13 +742,12 @@ export default function AdminPage() {
     staffel: StaffelRegel[]
   ): Promise<string | null> {
     const sorted = [...staffel].sort((a, b) => a.van_aantal - b.van_aantal)
-    const base = sorted[0]?.marge_coefficient ?? 1
     const rows = sorted.map(r => ({
       type,
       van_aantal: r.van_aantal,
       tot_aantal: r.tot_aantal,
       marge_coefficient: r.marge_coefficient,
-      multiplier: r.marge_coefficient > 0 ? Math.min(1, base / r.marge_coefficient) : 1,
+      multiplier: getStaffelPrijsfactor(sorted, r),
     }))
 
     const { error: deleteError } = await supabase.from('staffelregels').delete().eq('type', type)
@@ -1212,6 +1223,11 @@ export default function AdminPage() {
   function removeStaffelRow(type: 'fh' | 'kaal', id: string) {
     if (type === 'fh') setStaffelFH(s => s.filter(r => r.id !== id))
     else setStaffelKaal(s => s.filter(r => r.id !== id))
+  }
+
+  function resetRecommendedStaffel(type: 'fh' | 'kaal') {
+    if (type === 'fh') setStaffelFH(cloneStaffel(seedStaffelFineerHPL))
+    else setStaffelKaal(cloneStaffel(seedStaffelKaal))
   }
 
   function openBwAdd() {
@@ -2109,10 +2125,18 @@ export default function AdminPage() {
             {/* Fineer & HPL staffel */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Staffel Fineer & HPL</h3>
-                <button onClick={() => addStaffelRow('fh')} className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">
-                  + Rij toevoegen
-                </button>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700">Staffel Fineer & HPL</h3>
+                  <p className="text-xs text-gray-500 mt-1">Historisch geijkt: 0%, 2%, 6% en 8% korting. De calculator blijft liever iets boven historie dan eronder.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => resetRecommendedStaffel('fh')} className="text-xs px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100">
+                    Adviesstaffel
+                  </button>
+                  <button onClick={() => addStaffelRow('fh')} className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">
+                    + Rij toevoegen
+                  </button>
+                </div>
               </div>
               <StaffelTable
                 staffel={staffelFH}
@@ -2124,10 +2148,18 @@ export default function AdminPage() {
             {/* Kaal staffel */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Staffel Kaal</h3>
-                <button onClick={() => addStaffelRow('kaal')} className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">
-                  + Rij toevoegen
-                </button>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700">Staffel Kaal</h3>
+                  <p className="text-xs text-gray-500 mt-1">Conservatiever dan voorheen: 0%, 2%, 4% en 6% korting.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => resetRecommendedStaffel('kaal')} className="text-xs px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100">
+                    Adviesstaffel
+                  </button>
+                  <button onClick={() => addStaffelRow('kaal')} className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100">
+                    + Rij toevoegen
+                  </button>
+                </div>
               </div>
               <StaffelTable
                 staffel={staffelKaal}
@@ -3267,14 +3299,13 @@ function StaffelTable({
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Van aantal</th>
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Tot aantal</th>
           <th className="text-left py-2 px-2 font-semibold text-gray-500">Marge coëff.</th>
-          <th className="text-left py-2 px-2 font-semibold text-gray-500">Prijsfactor</th>
+          <th className="text-left py-2 px-2 font-semibold text-gray-500">Korting</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
         {staffel.map(r => {
-          const base = staffel[0]?.marge_coefficient || r.marge_coefficient
-          const prijsfactor = r.marge_coefficient > 0 ? Math.min(1, base / r.marge_coefficient) : 1
+          const prijsfactor = getStaffelPrijsfactor(staffel, r)
           return (
           <tr key={r.id} className="border-b border-gray-100">
             <td className="py-1.5 px-2">
@@ -3301,13 +3332,13 @@ function StaffelTable({
                 step="0.01"
                 min="0.01"
                 max="1"
-                onChange={e => onChange(staffel.map(x => x.id === r.id ? { ...x, marge_coefficient: parseFloat(e.target.value) || 0.65 } : x))}
+                onChange={e => onChange(staffel.map(x => x.id === r.id ? { ...x, marge_coefficient: parseFloat(e.target.value) || 0.65, multiplier: undefined } : x))}
                 className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none"
               />
             </td>
             <td className="py-1.5 px-2 text-sm">
               <Badge variant="info">
-                {prijsfactor.toFixed(3)} ({Math.round((1 - prijsfactor) * 100)}%)
+                {Math.round((1 - prijsfactor) * 100)}% ({prijsfactor.toFixed(3)}x)
               </Badge>
             </td>
             <td className="py-1.5 px-2">
