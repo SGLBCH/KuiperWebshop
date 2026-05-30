@@ -229,19 +229,42 @@ export default function ConfiguratorPage() {
         supabase.from('hotmelt_combinaties').select('*'),
       ])
 
+      let bpData = (bpRes.data ?? []) as Baseplaat[]
+      let fnData = (fnRes.data ?? []) as Fineer[]
+      let hplData = (hplRes.data ?? []) as HPL[]
+      let bwData = (bwRes.data ?? []) as Bewerking[]
+
+      if (bpData.length < 40 || fnData.length < 80 || bwData.length === 0) {
+        const backfillRes = await fetch('/api/catalog/backfill', { method: 'POST' })
+        if (backfillRes.ok) {
+          const [bpReload, fnReload, hplReload, bwReload] = await Promise.all([
+            supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
+            supabase.from('fineers').select('*').order('volgorde'),
+            supabase.from('hpl').select('*').order('kleur'),
+            supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
+          ])
+          bpData = (bpReload.data ?? bpData) as Baseplaat[]
+          fnData = (fnReload.data ?? fnData) as Fineer[]
+          hplData = (hplReload.data ?? hplData) as HPL[]
+          bwData = (bwReload.data ?? bwData) as Bewerking[]
+        } else {
+          console.warn('Catalogus backfill overgeslagen:', await backfillRes.text())
+        }
+      }
+
       // In a real Supabase session we must only expose database rows here.
       // Seed IDs are readable demo keys, but orderlijst_regels stores UUID
       // foreign keys; mixing the two causes invalid UUID errors when saving.
-      setBaseplaten((bpRes.data ?? []) as Baseplaat[])
-      setFineers((fnRes.data ?? []) as Fineer[])
-      setHplList((hplRes.data ?? []) as HPL[])
-      if (bwRes.data) setBewerkingen(bwRes.data as Bewerking[])
+      setBaseplaten(bpData)
+      setFineers(fnData)
+      setHplList(hplData)
+      setBewerkingen(bwData)
       if (uitRes.data) setUitsluitingen(uitRes.data as UitsluitingRow[])
       if (inslRes.data) setInsluitingen(inslRes.data as InsluitingRow[])
-      if (bwRes.data?.length) {
+      if (bwData.length) {
         // Pre-select standaard bewerkingen for fresh configurations
         setState(s => s.bewerkingen.length === 0
-          ? { ...s, bewerkingen: bwRes.data.filter((b: Bewerking) => b.standaard_geselecteerd) }
+          ? { ...s, bewerkingen: bwData.filter((b: Bewerking) => b.standaard_geselecteerd) }
           : s
         )
       }
