@@ -37,6 +37,10 @@ function isMissingColumnError(error: SupabaseErrorLike) {
   return error?.code === '42703' || /column .* does not exist/i.test(error?.message ?? '')
 }
 
+function isForeignKeyReferenceError(error: SupabaseErrorLike) {
+  return error?.code === '23503' || /violates foreign key constraint/i.test(error?.message ?? '')
+}
+
 function withoutFineerCalculationColumns(payload: Record<string, unknown>) {
   const { calculatie_factor, plak_overhead_per_m2, ...legacyPayload } = payload
   return legacyPayload
@@ -554,7 +558,19 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { error } = await supabase.from('baseplaten').delete().eq('id', id)
-      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      if (error) {
+        if (isForeignKeyReferenceError(error)) {
+          const { error: archiveError } = await supabase
+            .from('baseplaten')
+            .update({ beschikbaar: false })
+            .eq('id', id)
+          if (archiveError) { toast.error('Fout: ' + archiveError.message, { id: toastId }); return }
+          toast.success('Basisplaat verborgen in configurator', { id: toastId })
+          await loadBaseplaten()
+          return
+        }
+        toast.error('Fout: ' + error.message, { id: toastId }); return
+      }
       toast.success('Basisplaat verwijderd', { id: toastId })
       await loadBaseplaten()
     } catch (e) {
@@ -603,7 +619,19 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { error } = await supabase.from('fineers').delete().eq('id', id)
-      if (error) { toast.error('Fout: ' + error.message, { id: toastId }); return }
+      if (error) {
+        if (isForeignKeyReferenceError(error)) {
+          const { error: archiveError } = await supabase
+            .from('fineers')
+            .update({ status_lang: 'niet_beschikbaar', status_kort: 'niet_beschikbaar' })
+            .eq('id', id)
+          if (archiveError) { toast.error('Fout: ' + archiveError.message, { id: toastId }); return }
+          toast.success('Fineer verborgen in configurator', { id: toastId })
+          await loadFineers()
+          return
+        }
+        toast.error('Fout: ' + error.message, { id: toastId }); return
+      }
       toast.success('Fineer verwijderd', { id: toastId })
       await loadFineers()
     } catch (e) {
