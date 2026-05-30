@@ -136,7 +136,7 @@ CREATE INDEX idx_orderlijsten_status  ON public.orderlijsten(status);
 CREATE TABLE IF NOT EXISTS public.orderlijst_regels (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   orderlijst_id    UUID NOT NULL REFERENCES public.orderlijsten(id) ON DELETE CASCADE,
-  basisplaat_id    UUID NOT NULL REFERENCES public.baseplaten(id),
+  basisplaat_id    UUID NOT NULL REFERENCES public.baseplaten(id) ON UPDATE CASCADE,
   categorie        TEXT NOT NULL CHECK (categorie IN ('kaal', 'fineer', 'hpl')),
   fineer_voor      UUID REFERENCES public.fineers(id),
   fineer_tegen     UUID REFERENCES public.fineers(id),
