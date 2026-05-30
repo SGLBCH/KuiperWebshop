@@ -11,11 +11,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClasses: Record<Variant, string> = {
-  primary: 'bg-blue-600 hover:bg-blue-700 text-white border-transparent disabled:bg-blue-300',
-  secondary: 'bg-white hover:bg-gray-50 text-gray-700 border-gray-300 disabled:opacity-50',
-  success: 'bg-green-500 hover:bg-green-600 text-white border-transparent disabled:bg-green-300',
-  danger: 'bg-red-500 hover:bg-red-600 text-white border-transparent disabled:bg-red-300',
-  ghost: 'bg-transparent hover:bg-gray-100 text-gray-600 border-transparent disabled:opacity-50',
+  primary: 'kuiper-button-primary',
+  secondary: 'kuiper-button-secondary',
+  success: 'bg-[#2f5d50] hover:bg-[#24483e] text-white border-transparent disabled:opacity-45',
+  danger: 'bg-red-600 hover:bg-red-700 text-white border-transparent disabled:opacity-45',
+  ghost: 'bg-transparent hover:bg-stone-100 text-stone-700 border-transparent disabled:opacity-50',
 }
 
 const sizeClasses: Record<Size, string> = {
@@ -38,7 +38,7 @@ export function Button({
       disabled={disabled || loading}
       className={`
         inline-flex items-center justify-center gap-2 border transition-colors
-        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
+        kuiper-focus
         disabled:cursor-not-allowed
         ${variantClasses[variant]}
         ${sizeClasses[size]}

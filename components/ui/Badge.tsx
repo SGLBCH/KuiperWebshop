@@ -24,10 +24,10 @@ const variantClasses: Record<BadgeVariant, string> = {
   active: 'bg-green-100 text-green-800 border border-green-200',
   concept: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
   inactive: 'bg-gray-100 text-gray-600 border border-gray-200',
-  info: 'bg-blue-100 text-blue-700 border border-blue-200',
+  info: 'bg-stone-100 text-stone-700 border border-stone-200',
   danger: 'bg-red-100 text-red-700 border border-red-200',
   warning: 'bg-orange-100 text-orange-700 border border-orange-200',
-  verstuurd: 'bg-purple-100 text-purple-700 border border-purple-200',
+  verstuurd: 'bg-[#f1ebe4] text-[#7a4f2a] border border-[#decab6]',
   gearchiveerd: 'bg-gray-100 text-gray-500 border border-gray-200',
 }
 

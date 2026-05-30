@@ -99,11 +99,15 @@ export default function LoginPage() {
 
   return (
     <div className="w-full max-w-md">
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="bg-white rounded-lg shadow-lg border border-stone-200 p-8">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center mb-3">
-            <img src="/logo.png" alt="Kuiper Holland" className="h-16 w-auto" />
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <span className="h-12 w-12 rounded-md bg-[var(--color-primary)] text-white flex items-center justify-center font-bold">KH</span>
+            <span className="text-left leading-tight">
+              <span className="block font-bold text-stone-900">Kuiper Holland</span>
+              <span className="block text-xs text-stone-500">B2B Webshop</span>
+            </span>
           </div>
           <p className="text-sm text-gray-500">
             Webshop voor interieurbouw professionals
@@ -124,7 +128,7 @@ export default function LoginPage() {
               required
               autoComplete="email"
               placeholder="naam@bedrijf.nl"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm kuiper-focus"
             />
           </div>
 
@@ -141,7 +145,7 @@ export default function LoginPage() {
               required
               autoComplete="current-password"
               placeholder="••••••••"
-              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm kuiper-focus"
             />
           </div>
 
@@ -160,7 +164,7 @@ export default function LoginPage() {
                 onChange={e => setCaptchaAnswer(e.target.value)}
                 required
                 placeholder="?"
-                className="w-20 px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-20 px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-center kuiper-focus"
               />
               <button
                 type="button"
@@ -179,7 +183,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors text-sm"
+            className="w-full py-2.5 px-4 bg-[var(--color-primary)] hover:bg-[var(--color-primary-dark)] disabled:opacity-50 text-white font-semibold rounded-lg transition-colors text-sm"
           >
             {loading ? 'Bezig met inloggen…' : 'Inloggen'}
           </button>
@@ -188,7 +192,7 @@ export default function LoginPage() {
         {/* Links */}
         <div className="mt-6 text-center text-sm text-gray-500">
           Nog geen account?{' '}
-          <Link href="/signup" className="text-blue-600 hover:text-blue-700 font-medium">
+          <Link href="/signup" className="text-[var(--color-primary)] hover:text-[var(--color-primary-dark)] font-medium">
             Registreren
           </Link>
         </div>

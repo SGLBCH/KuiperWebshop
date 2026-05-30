@@ -71,10 +71,41 @@ const HPL_COLORS: Record<string, string> = {
 }
 
 const VOEGMETHODES = [
-  { id: 'gestolpt', label: 'Gestolpt', beschrijving: 'Nerven lopen parallel' },
-  { id: 'geschoven', label: 'Geschoven', beschrijving: 'Nerven lopen tegengesteld' },
-  { id: 'mixmatch', label: 'Mix Match', beschrijving: 'Willekeurige verdeling' },
-  { id: 'gedraaid_geschoven', label: 'Gedraaid Geschoven', beschrijving: 'Gedraaid en tegengesteld' },
+  {
+    id: 'gestolpt',
+    label: 'Gestolpt',
+    beschrijving: 'Rustig beeld met gespiegeld ritme',
+    afbeelding: '/voegmethodes/gestolpt.jpg',
+    uitleg: 'Fineervellen worden gespiegeld verwerkt. Dit geeft een herkenbaar patroon dat vaak bij fronten en zichtwerk wordt gekozen.',
+  },
+  {
+    id: 'geschoven',
+    label: 'Geschoven',
+    beschrijving: 'Doorlopend nerfbeeld',
+    afbeelding: '/voegmethodes/geschoven.jpg',
+    uitleg: 'Fineervellen worden in dezelfde richting naast elkaar gelegd. Praktisch wanneer een rustige, lineaire uitstraling gewenst is.',
+  },
+  {
+    id: 'mixmatch',
+    label: 'Mix Match',
+    beschrijving: 'Natuurlijk en minder repeterend',
+    afbeelding: '/voegmethodes/mixmatch.jpg',
+    uitleg: 'Vellen worden bewust gemixt zodat kleur- en nerfverschillen minder als patroon opvallen. Geschikt voor grotere vlakken.',
+  },
+  {
+    id: 'gedraaid_geschoven',
+    label: 'Gedraaid geschoven',
+    beschrijving: 'Levendiger tekening',
+    afbeelding: '/voegmethodes/gedraaid-geschoven.jpg',
+    uitleg: 'Een combinatie van draaien en schuiven. Dit geeft een dynamischer beeld en vraagt extra aandacht bij zichtzijden.',
+  },
+]
+
+const BASEPLAAT_GROUPS = [
+  { key: 'multiplex', label: 'Multiplex', match: ['multiplex', 'berken', 'okoume', 'populier', 'garant'] },
+  { key: 'mdf', label: 'MDF en vezelplaat', match: ['mdf', 'vezel'] },
+  { key: 'spaan', label: 'Spaanplaat', match: ['spaan'] },
+  { key: 'overig', label: 'Overige plaatmaterialen', match: [] },
 ]
 
 const FINEERKEUZE_OPTIONS = [
@@ -102,6 +133,13 @@ export default function ConfiguratorPage() {
   const [newListNaam, setNewListNaam] = useState('')
   const [creatingList, setCreatingList] = useState(false)
   const [m2Input, setM2Input] = useState('')
+  const [openBaseplaatGroups, setOpenBaseplaatGroups] = useState<Record<string, boolean>>({
+    multiplex: true,
+    mdf: false,
+    spaan: false,
+    overig: false,
+  })
+  const [voegInfoOpen, setVoegInfoOpen] = useState(false)
 
   // Catalog state — loaded from Supabase, fallback to seed
   const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
@@ -320,6 +358,7 @@ export default function ConfiguratorPage() {
     } else {
       setState(initialState)
       setStep(0)
+      router.push('/dashboard?tab=orderlijst')
     }
   }
 
@@ -370,19 +409,32 @@ export default function ConfiguratorPage() {
     return acc
   }, {})
 
+  const baseplaatGroupEntries = BASEPLAAT_GROUPS.map(group => {
+    const entries = Object.entries(baseplatenByNaam).filter(([naam]) => {
+      const lower = naam.toLowerCase()
+      if (group.key === 'overig') {
+        return !BASEPLAAT_GROUPS.some(other =>
+          other.key !== 'overig' && other.match.some(term => lower.includes(term))
+        )
+      }
+      return group.match.some(term => lower.includes(term))
+    })
+    return { ...group, entries }
+  }).filter(group => group.entries.length > 0)
+
   // Group afmetingen by lang/kort
   const isLang = state.afmeting ? state.afmeting.lengte_mm > 2800 : false
 
   return (
     <>
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Stepper */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 overflow-x-auto">
         <StepStepper currentStep={step} totalSteps={8} dimmedSteps={dimmedSteps} />
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-xl border border-gray-200">
+      <div className="bg-white rounded-lg border border-stone-200 shadow-sm">
         {/* ─── STEP 0: Orderlijst kiezen ─── */}
         {step === 0 && (
           <div className="p-6">
@@ -447,39 +499,63 @@ export default function ConfiguratorPage() {
         {step === 1 && (
           <div className="p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-1">Kies een basisplaat</h2>
-            <p className="text-sm text-gray-500 mb-6">Selecteer het materiaaltype.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {Object.entries(baseplatenByNaam).map(([naam, variants]) => {
-                const isSelected = state.basisplaat?.naam === naam
-                const diktes = [...new Set(variants.map(v => v.dikte_mm))].sort((a, b) => a - b)
-                return (
+            <p className="text-sm text-gray-500 mb-4">
+              Open de materiaalgroep die past bij uw werk. Na de materiaalkeuze kiest u dikte en plaatafmeting.
+            </p>
+
+            <div className="space-y-3">
+              {baseplaatGroupEntries.map(group => (
+                <section key={group.key} className="rounded-lg border border-stone-200 bg-white">
                   <button
-                    key={naam}
-                    onClick={() => setState(s => ({ ...s, basisplaat: variants[0], afmeting: undefined }))}
-                    className={`relative p-4 rounded-xl border-2 text-left transition-all hover:shadow-sm
-                      ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+                    type="button"
+                    onClick={() => setOpenBaseplaatGroups(groups => ({ ...groups, [group.key]: !groups[group.key] }))}
+                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-stone-50 rounded-lg"
                   >
-                    {variants[0]?.gallery_foto_url ? (
-                      <img
-                        src={variants[0].gallery_foto_url}
-                        alt={naam}
-                        className="w-full h-20 object-cover rounded-lg mb-2 border border-gray-100"
-                      />
-                    ) : (
-                      <div className="text-2xl mb-2">🪵</div>
-                    )}
-                    <p className="font-semibold text-gray-800">{naam}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{diktes.join(', ')}mm</p>
-                    {isSelected && (
-                      <div className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    )}
+                    <span>
+                      <span className="block text-sm font-semibold text-stone-900">{group.label}</span>
+                      <span className="text-xs text-stone-500">{group.entries.length} materiaalsoort{group.entries.length !== 1 ? 'en' : ''}</span>
+                    </span>
+                    <svg className={`w-4 h-4 text-stone-500 transition-transform ${openBaseplaatGroups[group.key] ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </button>
-                )
-              })}
+                  {openBaseplaatGroups[group.key] && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 pt-0">
+                      {group.entries.map(([naam, variants]) => {
+                        const isSelected = state.basisplaat?.naam === naam
+                        const diktes = [...new Set(variants.map(v => v.dikte_mm))].sort((a, b) => a - b)
+                        return (
+                          <button
+                            key={naam}
+                            onClick={() => setState(s => ({ ...s, basisplaat: variants[0], afmeting: undefined }))}
+                            className={`relative p-3 rounded-lg border text-left transition-all hover:shadow-sm
+                              ${isSelected ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]' : 'border-stone-200 hover:border-[var(--color-primary-muted)]'}`}
+                          >
+                            {variants[0]?.gallery_foto_url ? (
+                              <img
+                                src={variants[0].gallery_foto_url}
+                                alt={naam}
+                                className="w-full h-20 object-cover rounded-md mb-2 border border-stone-100"
+                              />
+                            ) : (
+                              <div className="h-20 rounded-md mb-2 border border-stone-100 bg-gradient-to-br from-stone-100 to-amber-100" />
+                            )}
+                            <p className="font-semibold text-stone-900 text-sm">{naam}</p>
+                            <p className="text-xs text-stone-500 mt-0.5">{diktes.join(', ')} mm beschikbaar</p>
+                            {isSelected && (
+                              <div className="absolute top-2 right-2 w-5 h-5 bg-[var(--color-primary)] rounded-full flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </section>
+              ))}
             </div>
           </div>
         )}
@@ -701,7 +777,32 @@ export default function ConfiguratorPage() {
 
                 {/* Voegmethode */}
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Voegmethode *</label>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <label className="block text-sm font-semibold text-gray-700">Voegmethode *</label>
+                    <button
+                      type="button"
+                      onClick={() => setVoegInfoOpen(open => !open)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-primary)] hover:text-[var(--color-primary-dark)]"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Welke voegmethode?
+                    </button>
+                  </div>
+                  {voegInfoOpen && (
+                    <div className="mb-3 grid sm:grid-cols-2 gap-3 rounded-lg border border-stone-200 bg-stone-50 p-3">
+                      {VOEGMETHODES.map(vm => (
+                        <article key={vm.id} className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+                          <img src={vm.afbeelding} alt={vm.label} className="w-full h-28 object-cover" />
+                          <div className="p-3">
+                            <p className="text-sm font-semibold text-stone-900">{vm.label}</p>
+                            <p className="text-xs text-stone-600 mt-1">{vm.uitleg}</p>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {VOEGMETHODES.filter(vm =>
                       !state.fineer_voor || state.fineer_voor.voegmethodes.includes(vm.id)
@@ -712,7 +813,7 @@ export default function ConfiguratorPage() {
                           key={vm.id}
                           onClick={() => setState(s => ({ ...s, voegmethode: vm.id }))}
                           className={`p-3 rounded-xl border-2 text-left relative transition-all
-                            ${state.voegmethode === vm.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+                            ${state.voegmethode === vm.id ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]' : 'border-gray-200 hover:border-[var(--color-primary-muted)]'}`}
                         >
                           {isStandaard && (
                             <span className="absolute top-1.5 right-1.5 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded-full font-medium">Standaard</span>

@@ -107,7 +107,7 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
   const checkLabels = [
     'Ik heb alle offerte regels gecontroleerd op juistheid',
     'Ik begrijp dat wijzigingen tijdens het productieproces niet meer mogelijk zijn',
-    'Ik ga akkoord met de leverings- en betalingsvoorwaarden',
+                'Ik ga akkoord met de leverings- en betalingsvoorwaarden van Kuiper Holland',
     'Ik bevestig dat deze offerte en mogelijke bestelling namens mijn bedrijf wordt geplaatst',
   ]
 
@@ -194,6 +194,16 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
       {modalStep === 1 && (
         <div className="space-y-4">
           <p className="text-sm font-medium text-gray-700">Bevestig de volgende punten om uw offerte aanvraag te versturen:</p>
+          <p className="text-xs text-gray-500">
+            Lees de voorwaarden voor verzending: {' '}
+            <a className="font-semibold text-[var(--color-primary)] hover:underline" href="/voorwaarden/algemene-verkoop-en-leveringsvoorwaarden-nl.pdf" target="_blank">
+              Nederlands
+            </a>
+            {' '}of{' '}
+            <a className="font-semibold text-[var(--color-primary)] hover:underline" href="/voorwaarden/algemene-verkoop-en-leveringsvoorwaarden-en.pdf" target="_blank">
+              English
+            </a>.
+          </p>
           <div className="space-y-3">
             {checkLabels.map((label, i) => (
               <label key={i} className="flex items-start gap-3 cursor-pointer group">
@@ -314,6 +324,11 @@ export default function DashboardPage() {
   }, [])
 
   useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get('tab')
+    if (requestedTab === 'orders' || requestedTab === 'orderlijst') {
+      setActiveTab(requestedTab)
+    }
+
     async function load() {
       const supabase = await getSupabase()
       if (!supabase) {
@@ -744,23 +759,24 @@ export default function DashboardPage() {
             <div className="space-y-4">
 
               {/* ── Rij 1: volle breedte — configurator uitleg ── */}
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl p-6 text-white">
-                <h1 className="text-xl font-bold mb-1">Configureer uw platen op maat</h1>
-                <p className="text-blue-100 text-sm mb-4">
+              <div className="bg-white rounded-lg border border-stone-200 p-6 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--color-primary)] mb-2">Kuiper Holland webshop</p>
+                <h1 className="text-xl font-bold mb-1 text-stone-900">Configureer plaatmateriaal voor interieurbouw</h1>
+                <p className="text-stone-600 text-sm mb-4">
                   Kies uw basisplaat, selecteer de voor- en tegenzijde in fineer of HPL, en bekijk direct uw prijs. Binnen een paar stappen een complete offerte.
                 </p>
-                <div className="flex flex-wrap gap-3 text-sm text-blue-100 mb-5">
-                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">1</span> Kies basisplaat</span>
-                  <span className="text-blue-300">→</span>
-                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">2</span> Fineer of HPL</span>
-                  <span className="text-blue-300">→</span>
-                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">3</span> Bewerkingen</span>
-                  <span className="text-blue-300">→</span>
-                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold text-white">4</span> Bekijk uw prijs</span>
+                <div className="flex flex-wrap gap-3 text-sm text-stone-700 mb-5">
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center text-xs font-bold">1</span> Kies basisplaat</span>
+                  <span className="text-stone-300">→</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center text-xs font-bold">2</span> Fineer of HPL</span>
+                  <span className="text-stone-300">→</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center text-xs font-bold">3</span> Bewerkingen</span>
+                  <span className="text-stone-300">→</span>
+                  <span className="flex items-center gap-1.5"><span className="w-5 h-5 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center text-xs font-bold">4</span> Verstuur offerteaanvraag</span>
                 </div>
                 <Link
                   href="/configurator"
-                  className="inline-block px-5 py-2.5 bg-white text-blue-700 text-sm font-bold rounded-xl hover:bg-blue-50 transition-colors"
+                  className="inline-block px-5 py-2.5 bg-[var(--color-primary)] text-white text-sm font-bold rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors"
                 >
                   + Nieuwe configuratie starten
                 </Link>
@@ -770,7 +786,7 @@ export default function DashboardPage() {
               <div className="grid sm:grid-cols-2 gap-4">
 
                 {/* Actieve orderlijsten */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <div className="bg-white rounded-lg border border-stone-200 p-5 shadow-sm">
                   <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Mijn orderlijsten</h2>
                   {(() => {
                     const actief = orderlijsten.filter(l => l.status === 'actueel' || l.status === 'concept')
@@ -812,7 +828,7 @@ export default function DashboardPage() {
                 </div>
 
                 {/* USP's */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-5">
+                <div className="bg-white rounded-lg border border-stone-200 p-5 shadow-sm">
                   <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Waarom Kuiper Holland</h2>
                   <ul className="space-y-2.5">
                     {[
@@ -823,7 +839,7 @@ export default function DashboardPage() {
                       'Productietijd van ongeveer 2 weken',
                     ].map((usp, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-gray-700">
-                        <span className="mt-0.5 w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                        <span className="mt-0.5 w-4 h-4 rounded-full bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center shrink-0">
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 00-1.414 0L8 12.586 4.707 9.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l8-8a1 1 0 000-1.414z" clipRule="evenodd" />
                           </svg>
@@ -834,6 +850,41 @@ export default function DashboardPage() {
                   </ul>
                 </div>
 
+              </div>
+
+              <div className="grid lg:grid-cols-[1fr_320px] gap-4">
+                <section className="bg-white rounded-lg border border-stone-200 p-5 shadow-sm">
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Veelgestelde vragen</h2>
+                  <div className="divide-y divide-stone-200">
+                    {[
+                      ['Kan ik eerst een offerte aanvragen?', 'Ja. De webshop maakt een orderlijst met prijsindicatie. Na versturen controleert Kuiper Holland de aanvraag en volgt de offertebevestiging.'],
+                      ['Wanneer kies ik foto van Kuiper?', 'Kies dit wanneer kleur en nerftekening belangrijk zijn voor zichtbaar werk. Wij sturen dan een foto ter goedkeuring voor productie.'],
+                      ['Kan ik meerdere projecten combineren?', 'Ja. Selecteer twee of meer orderlijsten om aantallen samen te voegen voor staffelkorting.'],
+                      ['Wat betekent de prijs?', 'Alle bedragen zijn indicatief en exclusief btw. In de verzendstap bevestigt u de voorwaarden voordat de aanvraag wordt verstuurd.'],
+                    ].map(([vraag, antwoord]) => (
+                      <details key={vraag} className="group py-3">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-stone-800">
+                          {vraag}
+                          <span className="text-stone-400 group-open:rotate-180 transition-transform">⌄</span>
+                        </summary>
+                        <p className="mt-2 text-sm text-stone-600">{antwoord}</p>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+
+                <aside className="bg-[#f6efe8] rounded-lg border border-[#decab6] p-5">
+                  <h2 className="text-sm font-semibold text-stone-900 mb-2">Voorwaarden</h2>
+                  <p className="text-sm text-stone-600 mb-4">Download de algemene verkoop- en leveringsvoorwaarden voordat u een offerteaanvraag verstuurt.</p>
+                  <div className="space-y-2">
+                    <a className="block px-3 py-2 bg-white rounded-md border border-[#decab6] text-sm font-semibold text-[var(--color-primary)] hover:bg-stone-50" href="/voorwaarden/algemene-verkoop-en-leveringsvoorwaarden-nl.pdf" target="_blank">
+                      Nederlandse voorwaarden
+                    </a>
+                    <a className="block px-3 py-2 bg-white rounded-md border border-[#decab6] text-sm font-semibold text-[var(--color-primary)] hover:bg-stone-50" href="/voorwaarden/algemene-verkoop-en-leveringsvoorwaarden-en.pdf" target="_blank">
+                      English terms
+                    </a>
+                  </div>
+                </aside>
               </div>
             </div>
           )}

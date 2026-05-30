@@ -43,9 +43,9 @@ export function StepStepper({
                   ${isDimmed
                     ? 'bg-gray-100 border-gray-200 text-gray-300'
                     : isCompleted
-                    ? 'bg-blue-600 border-blue-600 text-white'
+                    ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white'
                     : isActive
-                    ? 'bg-white border-blue-600 text-blue-600 shadow-sm'
+                    ? 'bg-white border-[var(--color-primary)] text-[var(--color-primary)] shadow-sm'
                     : 'bg-white border-gray-300 text-gray-400'
                   }
                 `}
@@ -60,7 +60,7 @@ export function StepStepper({
               </div>
               <span
                 className={`text-xs mt-1 text-center whitespace-nowrap hidden md:block
-                  ${isDimmed ? 'text-gray-300' : isActive ? 'text-blue-600 font-medium' : isCompleted ? 'text-blue-500' : 'text-gray-400'}
+                  ${isDimmed ? 'text-gray-300' : isActive ? 'text-[var(--color-primary)] font-medium' : isCompleted ? 'text-[var(--color-primary)]' : 'text-gray-400'}
                 `}
                 style={{ fontSize: '10px', maxWidth: '60px' }}
               >
@@ -70,7 +70,7 @@ export function StepStepper({
             {idx < totalSteps - 1 && (
               <div
                 className={`w-6 sm:w-10 h-0.5 mx-1 shrink-0 ${
-                  dimmedSteps.includes(step + 1) ? 'bg-gray-100' : step < currentStep ? 'bg-blue-400' : 'bg-gray-200'
+                  dimmedSteps.includes(step + 1) ? 'bg-gray-100' : step < currentStep ? 'bg-[var(--color-primary-muted)]' : 'bg-gray-200'
                 }`}
               />
             )}

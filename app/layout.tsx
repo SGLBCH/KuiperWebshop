@@ -27,15 +27,17 @@ export default function RootLayout({
             duration: 4000,
             style: {
               borderRadius: '8px',
-              background: '#1f2937',
-              color: '#f9fafb',
+              background: '#ffffff',
+              color: '#26211d',
               fontSize: '14px',
+              border: '1px solid #e7dfd6',
+              boxShadow: '0 12px 30px rgba(38, 33, 29, 0.12)',
             },
             success: {
-              iconTheme: { primary: '#10B981', secondary: '#f9fafb' },
+              iconTheme: { primary: '#2f5d50', secondary: '#ffffff' },
             },
             error: {
-              iconTheme: { primary: '#EF4444', secondary: '#f9fafb' },
+              iconTheme: { primary: '#b42318', secondary: '#ffffff' },
             },
           }}
         />

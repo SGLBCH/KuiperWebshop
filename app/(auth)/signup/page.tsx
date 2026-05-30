@@ -189,13 +189,17 @@ export default function SignupPage() {
 
   return (
     <div className="w-full max-w-lg">
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="bg-white rounded-lg shadow-lg border border-stone-200 p-8">
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="flex items-center justify-center mb-2">
-            <img src="/logo.png" alt="Kuiper Holland" className="h-14 w-auto" />
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <span className="h-11 w-11 rounded-md bg-[var(--color-primary)] text-white flex items-center justify-center font-bold">KH</span>
+            <span className="text-left leading-tight">
+              <span className="block font-bold text-stone-900">Kuiper Holland</span>
+              <span className="block text-xs text-stone-500">B2B Webshop</span>
+            </span>
           </div>
-          <p className="text-sm text-gray-500">Account aanmaken</p>
+          <p className="text-sm text-gray-500">Zakelijk account aanvragen</p>
         </div>
 
         {/* Stepper */}
@@ -206,7 +210,7 @@ export default function SignupPage() {
                 <div className="flex flex-col items-center">
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
-                      ${i < step ? 'bg-green-500 text-white' : i === step ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'}`}
+                      ${i < step ? 'bg-[#2f5d50] text-white' : i === step ? 'bg-[var(--color-primary)] text-white' : 'bg-gray-200 text-gray-500'}`}
                   >
                     {i < step ? (
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -438,7 +442,7 @@ export default function SignupPage() {
             </div>
             <Link
               href="/login"
-              className="inline-block mt-2 px-6 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-block mt-2 px-6 py-2.5 bg-[var(--color-primary)] text-white text-sm font-semibold rounded-lg hover:bg-[var(--color-primary-dark)] transition-colors"
             >
               Terug naar start
             </Link>
@@ -463,7 +467,7 @@ export default function SignupPage() {
               type="button"
               onClick={handleNext}
               disabled={loading}
-              className="px-6 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-60 transition-colors"
+              className="px-6 py-2 text-sm font-semibold text-white bg-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-dark)] disabled:opacity-60 transition-colors"
             >
               {loading ? 'Bezig…' : step === 3 ? 'Account aanmaken →' : 'Volgende →'}
             </button>
@@ -474,7 +478,7 @@ export default function SignupPage() {
         {step < 4 && (
           <div className="mt-5 text-center text-sm text-gray-500">
             Al een account?{' '}
-            <Link href="/login" className="text-blue-600 hover:text-blue-700 font-medium">
+            <Link href="/login" className="text-[var(--color-primary)] hover:text-[var(--color-primary-dark)] font-medium">
               Inloggen
             </Link>
           </div>

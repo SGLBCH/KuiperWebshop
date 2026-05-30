@@ -48,7 +48,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-[#faf8f5]">
       {/* Demo Banner */}
       {demoMode && (
         <div className="bg-amber-400 text-amber-950 text-center text-xs font-medium py-1.5 px-4">
@@ -57,37 +57,42 @@ export default async function DashboardLayout({
       )}
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+      <header className="bg-white/95 backdrop-blur border-b border-stone-200 sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             {/* Logo */}
-            <Link href="/dashboard" className="flex items-center hover:opacity-80 transition-opacity">
-              <img src="/logo.png" alt="Kuiper Holland" className="h-9 w-auto" />
+            <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+              <span className="h-9 w-9 rounded-md bg-[var(--color-primary)] text-white flex items-center justify-center font-bold text-sm">
+                KH
+              </span>
+              <span className="kuiper-wordmark hidden sm:block font-semibold text-sm leading-tight">
+                Kuiper Holland<br /><span className="text-xs font-normal text-stone-500">B2B Webshop</span>
+              </span>
             </Link>
 
             {/* Nav */}
             <nav className="hidden md:flex items-center gap-1">
               <Link
                 href="/dashboard"
-                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-3 py-2 text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
               >
                 Dashboard
               </Link>
               <Link
                 href="/configurator"
-                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-3 py-2 text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
               >
                 Configurator
               </Link>
               <Link
                 href="/profile"
-                className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-3 py-2 text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-lg transition-colors"
               >
                 Profiel
               </Link>
               <Link
                 href="/admin"
-                className="px-3 py-2 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                className="px-3 py-2 text-sm font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
               >
                 Admin
               </Link>
@@ -95,7 +100,7 @@ export default async function DashboardLayout({
 
             {/* Right */}
             <div className="flex items-center gap-3">
-              <span className="hidden sm:block text-sm text-gray-500 max-w-[180px] truncate">
+              <span className="hidden sm:block text-sm text-stone-500 max-w-[180px] truncate">
                 {demoMode ? 'demo@kuiperholland.nl' : (user?.email ?? '')}
               </span>
               <LogoutButton />
@@ -110,10 +115,13 @@ export default async function DashboardLayout({
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between text-xs text-gray-400">
+      <footer className="bg-white border-t border-stone-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4 text-xs text-stone-500">
           <span>© {new Date().getFullYear()} Kuiper Holland B.V. — Alle rechten voorbehouden.</span>
-          <span>B2B Webshop v1.0</span>
+          <span className="flex items-center gap-3">
+            <a className="hover:text-[var(--color-primary)]" href="/voorwaarden/algemene-verkoop-en-leveringsvoorwaarden-nl.pdf" target="_blank">Voorwaarden NL</a>
+            <a className="hover:text-[var(--color-primary)]" href="/voorwaarden/algemene-verkoop-en-leveringsvoorwaarden-en.pdf" target="_blank">Terms EN</a>
+          </span>
         </div>
       </footer>
     </div>
