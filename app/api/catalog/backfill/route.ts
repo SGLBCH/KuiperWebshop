@@ -67,7 +67,15 @@ async function syncBaseplaten(supabase: any): Promise<SyncResult> {
   if (missing.length === 0) return { inserted: 0, existing: existing.size }
 
   const { error: insertError } = await supabase.from('baseplaten').insert(missing)
-  if (insertError) throw new Error(insertError.message)
+  if (insertError) {
+    if (hasMissingColumnError(insertError)) {
+      const legacyRows = missing.map(({ gallery_foto_url: _gallery, ...row }) => row)
+      const { error: legacyError } = await supabase.from('baseplaten').insert(legacyRows)
+      if (legacyError) throw new Error(legacyError.message)
+    } else {
+      throw new Error(insertError.message)
+    }
+  }
 
   return { inserted: missing.length, existing: existing.size }
 }

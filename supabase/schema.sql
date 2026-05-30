@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS public.baseplaten (
   lengte_mm    INTEGER NOT NULL,
   prijs_per_m2 NUMERIC(10,2) NOT NULL,
   beschikbaar  BOOLEAN NOT NULL DEFAULT TRUE,
+  gallery_foto_url TEXT,
   volgorde     INTEGER NOT NULL DEFAULT 0
 );
 

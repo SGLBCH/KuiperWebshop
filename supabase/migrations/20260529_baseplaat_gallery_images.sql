@@ -1,6 +1,9 @@
 -- Baseplaat gallery images from Producten-Export-2026-May-29-1928.csv.
 -- Matches are intentionally made on the webshop baseplaat names.
 
+ALTER TABLE public.baseplaten
+  ADD COLUMN IF NOT EXISTS gallery_foto_url TEXT;
+
 UPDATE public.baseplaten
 SET gallery_foto_url = CASE naam
   WHEN 'Populieren' THEN 'https://kuiperholland.nl/wp-content/uploads/2018/04/kuiper-holland-basic-poplar-plywood.jpg'
