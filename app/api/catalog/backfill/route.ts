@@ -28,6 +28,23 @@ export async function POST() {
     )
   }
 
+  // Alleen admins mogen de catalogus backfillen — dit endpoint schrijft
+  // met service role en zou anders door iedereen aan te roepen zijn.
+  const { createClient: createAuthClient } = await import('@/lib/supabase/server')
+  const authClient = await createAuthClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Niet ingelogd.' }, { status: 401 })
+  }
+  const { data: profile } = await authClient
+    .from('profiles')
+    .select('rol')
+    .eq('id', user.id)
+    .single()
+  if (profile?.rol !== 'admin') {
+    return NextResponse.json({ error: 'Geen toegang.' }, { status: 403 })
+  }
+
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   })

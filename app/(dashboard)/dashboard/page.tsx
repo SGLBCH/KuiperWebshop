@@ -1,18 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
-import {
-  seedOrderlijsten,
-  seedVasteKosten,
-  seedStaffelFineerHPL,
-  seedStaffelKaal,
-} from '@/lib/seed-data'
-import type { Orderlijst, Baseplaat, Fineer, HPL, Bewerking, StaffelRegel, PricingData, HotmeltCombinatie } from '@/lib/types'
-import { calculatePrice, getMargeCoefficient, getStaffelDisplayMultiplier } from '@/lib/pricing'
+import { seedOrderlijsten } from '@/lib/seed-data'
+import type { Orderlijst, Baseplaat, Fineer, HPL, Bewerking } from '@/lib/types'
 import toast from 'react-hot-toast'
 
 type OrderlijstRegel = {
@@ -31,57 +25,24 @@ type OrderlijstRegel = {
   aantal: number
   prijs_per_stuk: number
   totaal_prijs: number
-  baseplaten?: { naam: string; dikte_mm: number }
-  fineers_voor?: { naam: string; gallery_foto_url?: string | null } | null
-  fineers_tegen?: { naam: string; gallery_foto_url?: string | null } | null
-  hpl_voor_data?: { kleur: string; gallery_foto_url?: string | null } | null
-  hpl_tegen_data?: { kleur: string; gallery_foto_url?: string | null } | null
 }
 
+// Catalogus voor weergave (namen, foto's) — bewust ZONDER inkoopprijzen,
+// staffels en calculatiefactoren. Prijzen worden server-side berekend
+// via /api/prijs.
 type CatalogCache = {
   baseplaten: Baseplaat[]
   fineers: Fineer[]
   hplList: HPL[]
   bewerkingen: Bewerking[]
-  staffelFH: StaffelRegel[]
-  staffelKaal: StaffelRegel[]
   verzendDrempel: number
   verzendKosten: number
-  fineerlijm: number
-  schuurbanden: number
-  hplLijm: number
-  puHotmelt: number
-  basisMarkupFineerHpl: number
-  basisMarkupKaal: number
-  hplCalculatieFactor: number
-  hplOverhead: number
-  fineerOverheadMin: number
-  fineerOverheadMax: number
-  toeslagMixmatch: number
-  toeslagGedraaidGeschoven: number
-  toeslagFotoFineerkeuze: number
-  toeslagPersoonlijkFineerkeuze: number
-  hotmeltCombs: HotmeltCombinatie[]
 }
 
-type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null; multiplier?: number | null }
-
-function parseStaffelRows(rows: StaffelDbRow[]) {
-  const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
-    if (typeof row.marge_coefficient !== 'number') return null
-    return {
-      id: row.id,
-      van_aantal: row.van_aantal,
-      tot_aantal: row.tot_aantal,
-      marge_coefficient: row.marge_coefficient,
-      multiplier: typeof row.multiplier === 'number' ? row.multiplier : undefined,
-    }
-  }
-  return {
-    fineerHpl: rows.filter(row => row.type === 'fineer_hpl').map(toRegel).filter((row): row is StaffelRegel => row !== null),
-    kaal: rows.filter(row => row.type === 'kaal').map(toRegel).filter((row): row is StaffelRegel => row !== null),
-  }
-}
+// Veilige kolommen als fallback zolang de catalogus-views nog niet bestaan
+const BP_SAFE_COLS = 'id, naam, dikte_mm, breedte_mm, lengte_mm, beschikbaar, gallery_foto_url, volgorde'
+const FN_SAFE_COLS = 'id, naam, voegmethodes, voeg_standaard, fk_advies, info, status_lang, status_kort, gallery_foto_url, volgorde'
+const HPL_SAFE_COLS = 'id, kleur, hpl_afm_lang_b, hpl_afm_lang_l, hpl_afm_kort_b, hpl_afm_kort_l, info, status_lang, status_kort, gallery_foto_url'
 
 const FINEERKEUZE_LABELS: Record<string, string> = {
   fabriek: 'Fabriek kiest',
@@ -387,147 +348,104 @@ export default function DashboardPage() {
     toast.success(`Orderlijst "${naam}" aangemaakt`)
   }
 
-  function herbereken(regels: OrderlijstRegel[], catalog: CatalogCache): OrderlijstRegel[] {
-    // 1. Aggregeer volumes voor staffel lookup
-    const totaalFH = regels
-      .filter(r => r.categorie === 'fineer' || r.categorie === 'hpl')
-      .reduce((s, r) => s + r.aantal, 0)
-    const totaalKaal = regels
-      .filter(r => r.categorie === 'kaal')
-      .reduce((s, r) => s + r.aantal, 0)
-
-    // 2. Zoek de juiste marge_coëfficiënt op per categorie
-    const coeffFH = getMargeCoefficient(totaalFH, catalog.staffelFH)
-    const coeffKaal = getMargeCoefficient(totaalKaal, catalog.staffelKaal)
-    const multiplierFH = getStaffelDisplayMultiplier(totaalFH, catalog.staffelFH)
-    const multiplierKaal = getStaffelDisplayMultiplier(totaalKaal, catalog.staffelKaal)
-
-    // 3. Herbereken elke regel
-    return regels.map(regel => {
-      const plaat = catalog.baseplaten.find(b => b.id === regel.basisplaat_id)
-      if (!plaat || regel.aantal <= 0) return regel
-
-      const coeff = regel.categorie === 'kaal' ? coeffKaal : coeffFH
-      const multiplier = regel.categorie === 'kaal' ? multiplierKaal : multiplierFH
-
-      // Één-rij staffel met exact het berekende coëfficiënt
-      const mockStaffel: StaffelRegel[] = [
-        { id: '_mock', van_aantal: 1, tot_aantal: null, marge_coefficient: coeff, multiplier },
-      ]
-
-      // PricingData — verzending op 99999999 want die berekenen we apart op orderniveau
-      const pricingData: PricingData = {
-        staffel: mockStaffel,
-        verzend_drempel: 99_999_999,
-        verzend_kosten: 0,
-        fineerlijm_per_m2: catalog.fineerlijm,
-        schuurbanden_per_m2: catalog.schuurbanden,
-        hpl_lijm_per_m2: catalog.hplLijm,
-        pu_hotmelt_per_m2: catalog.puHotmelt,
-        basisplaat_markup_fineer_hpl: catalog.basisMarkupFineerHpl,
-        basisplaat_markup_kaal: catalog.basisMarkupKaal,
-        hpl_calculatie_factor: catalog.hplCalculatieFactor,
-        hpl_overhead_per_m2: catalog.hplOverhead,
-        fineer_overhead_min_per_m2: catalog.fineerOverheadMin,
-        fineer_overhead_max_per_m2: catalog.fineerOverheadMax,
-        toeslag_mixmatch_per_m2: catalog.toeslagMixmatch,
-        toeslag_gedraaid_geschoven_per_m2: catalog.toeslagGedraaidGeschoven,
-        toeslag_foto_fineerkeuze_per_m2: catalog.toeslagFotoFineerkeuze,
-        toeslag_persoonlijk_fineerkeuze_per_m2: catalog.toeslagPersoonlijkFineerkeuze,
-        hotmelt_combinaties: catalog.hotmeltCombs,
-      }
-
-      // ConfiguratorState opbouwen vanuit de opgeslagen IDs
-      const configuratorState = {
-        basisplaat: plaat,
-        afmeting: plaat,
-        categorie: regel.categorie as 'kaal' | 'fineer' | 'hpl',
-        fineer_voor: regel.fineer_voor
-          ? catalog.fineers.find(f => f.id === regel.fineer_voor)
-          : undefined,
-        fineer_tegen: regel.fineer_tegen
-          ? catalog.fineers.find(f => f.id === regel.fineer_tegen)
-          : undefined,
-        hpl_voor: regel.hpl_voor
-          ? catalog.hplList.find(h => h.id === regel.hpl_voor)
-          : undefined,
-        hpl_tegen: regel.hpl_tegen
-          ? catalog.hplList.find(h => h.id === regel.hpl_tegen)
-          : undefined,
-        bewerkingen: catalog.bewerkingen.filter(b =>
-          (regel.bewerkingen ?? []).includes(b.id)
-        ),
-        voegmethode: regel.voegmethode ?? undefined,
-        invoer_modus: 'aantal' as const,
-        ruimte_indeling: (regel.ruimte_indeling ?? 'geen') as 'geen' | 'per_ruimte',
-        ruimtes: [],
-        aantal: regel.aantal,
-        prijs_per_stuk: 0,
-        totaal_prijs: 0,
-      }
-
-      const result = calculatePrice(configuratorState, pricingData)
-
-      return {
-        ...regel,
-        prijs_per_stuk: Math.round((result.subtotaal_na_staffel / regel.aantal) * 100) / 100,
-        totaal_prijs: Math.round(result.subtotaal_na_staffel * 100) / 100,
-      }
-    })
+  // Herberekent regelprijzen server-side (gecombineerde staffel incl.
+  // zusterlijsten). Inkoopprijzen en marges blijven op de server.
+  async function herberekenViaApi(regels: OrderlijstRegel[]): Promise<OrderlijstRegel[]> {
+    try {
+      const res = await fetch('/api/prijs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'orderlijst',
+          regels: regels.map(r => ({
+            id: r.id,
+            basisplaat_id: r.basisplaat_id,
+            categorie: r.categorie,
+            fineer_voor: r.fineer_voor,
+            fineer_tegen: r.fineer_tegen,
+            hpl_voor: r.hpl_voor,
+            hpl_tegen: r.hpl_tegen,
+            voegmethode: r.voegmethode,
+            fineerkeuze: r.fineerkeuze,
+            bewerkingen: r.bewerkingen ?? [],
+            aantal: r.aantal,
+          })),
+        }),
+      })
+      if (!res.ok) return regels
+      const json: { regels?: { id: string; prijs_per_stuk: number; totaal_prijs: number }[] } = await res.json()
+      const byId = new Map((json.regels ?? []).map(r => [r.id, r]))
+      return regels.map(r => {
+        const p = byId.get(r.id)
+        return p ? { ...r, prijs_per_stuk: p.prijs_per_stuk, totaal_prijs: p.totaal_prijs } : r
+      })
+    } catch {
+      return regels
+    }
   }
 
-  // Gedeelde catalogus-loader (hergebruikt door openBekijk, combineer en loskoppel)
+  // Debounced herberekening voor +/- klikken in de bekijk-modal
+  const herberekenTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function scheduleHerbereken(regels: OrderlijstRegel[], siblingRegels: OrderlijstRegel[]) {
+    if (herberekenTimer.current) clearTimeout(herberekenTimer.current)
+    herberekenTimer.current = setTimeout(async () => {
+      const herberekend = await herberekenViaApi([...regels, ...siblingRegels])
+      const byId = new Map(herberekend.map(r => [r.id, r]))
+      setViewModal(v => {
+        if (!v.open) return v
+        return {
+          ...v,
+          regels: v.regels.map(r => {
+            const u = byId.get(r.id)
+            // Alleen overnemen als het aantal niet alweer is gewijzigd
+            return u && u.aantal === r.aantal
+              ? { ...r, prijs_per_stuk: u.prijs_per_stuk, totaal_prijs: u.totaal_prijs }
+              : r
+          }),
+        }
+      })
+    }, 400)
+  }
+
+  // Gedeelde catalogus-loader voor weergave (namen + foto's, geen prijzen).
+  // Views eerst; fallback naar basistabellen met veilige kolommen zolang
+  // de views nog niet in Supabase bestaan.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function loadCatalog(supabase: any): Promise<CatalogCache> {
-    const [bpRes, fnRes, hplRes, bwRes, staffelRes, insRes, hmRes] = await Promise.all([
-      supabase.from('baseplaten').select('*'),
-      supabase.from('fineers').select('*'),
-      supabase.from('hpl').select('*'),
-      supabase.from('bewerkingen').select('*'),
-      supabase.from('staffelregels').select('*').order('van_aantal'),
-      supabase.from('instellingen').select('*'),
-      supabase.from('hotmelt_combinaties').select('*'),
+    let [bpRes, fnRes, hplRes] = await Promise.all([
+      supabase.from('catalogus_baseplaten').select('*'),
+      supabase.from('catalogus_fineers').select('*'),
+      supabase.from('catalogus_hpl').select('*'),
     ])
-    const ins = insRes.data ?? []
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const getIns = (key: string, def: number) =>
-      parseFloat(ins.find((i: { sleutel: string; waarde: string }) => i.sleutel === key)?.waarde ?? String(def))
-    let staffelFH = seedStaffelFineerHPL
-    let staffelKaal = seedStaffelKaal
-    try {
-      const fhRaw = ins.find((i: { sleutel: string }) => i.sleutel === 'staffel_fineer_hpl')?.waarde
-      const kaalRaw = ins.find((i: { sleutel: string }) => i.sleutel === 'staffel_kaal')?.waarde
-      if (fhRaw) staffelFH = JSON.parse(fhRaw)
-      if (kaalRaw) staffelKaal = JSON.parse(kaalRaw)
-    } catch { /* gebruik seed defaults */ }
-    if (staffelRes.data?.length) {
-      const fromTable = parseStaffelRows(staffelRes.data as StaffelDbRow[])
-      if (fromTable.fineerHpl.length > 0) staffelFH = fromTable.fineerHpl
-      if (fromTable.kaal.length > 0) staffelKaal = fromTable.kaal
+    if (bpRes.error || fnRes.error || hplRes.error) {
+      ;[bpRes, fnRes, hplRes] = await Promise.all([
+        supabase.from('baseplaten').select(BP_SAFE_COLS),
+        supabase.from('fineers').select(FN_SAFE_COLS),
+        supabase.from('hpl').select(HPL_SAFE_COLS),
+      ])
     }
+
+    const [bwRes, insViewRes] = await Promise.all([
+      supabase.from('bewerkingen').select('*'),
+      supabase.from('instellingen_publiek').select('*'),
+    ])
+    let ins = insViewRes.data ?? []
+    if (insViewRes.error) {
+      const insRes = await supabase.from('instellingen').select('sleutel, waarde').in('sleutel', ['verzend_drempel', 'verzend_kosten'])
+      ins = insRes.data ?? []
+    }
+    const getIns = (key: string, def: number) => {
+      const parsed = parseFloat(ins.find((i: { sleutel: string; waarde: string }) => i.sleutel === key)?.waarde ?? '')
+      return Number.isFinite(parsed) ? parsed : def
+    }
+
     return {
       baseplaten: (bpRes.data ?? []) as Baseplaat[],
       fineers: (fnRes.data ?? []) as Fineer[],
       hplList: (hplRes.data ?? []) as HPL[],
       bewerkingen: (bwRes.data ?? []) as Bewerking[],
-      staffelFH, staffelKaal,
       verzendDrempel: getIns('verzend_drempel', 1750),
       verzendKosten: getIns('verzend_kosten', 25),
-      fineerlijm: getIns('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2),
-      schuurbanden: getIns('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2),
-      hplLijm: getIns('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2),
-      puHotmelt: getIns('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2),
-      basisMarkupFineerHpl: getIns('basisplaat_markup_fineer_hpl', seedVasteKosten.basisplaat_markup_fineer_hpl),
-      basisMarkupKaal: getIns('basisplaat_markup_kaal', seedVasteKosten.basisplaat_markup_kaal),
-      hplCalculatieFactor: getIns('hpl_calculatie_factor', seedVasteKosten.hpl_calculatie_factor),
-      hplOverhead: getIns('hpl_overhead_per_m2', seedVasteKosten.hpl_overhead_per_m2),
-      fineerOverheadMin: getIns('fineer_overhead_min_per_m2', seedVasteKosten.fineer_overhead_min_per_m2),
-      fineerOverheadMax: getIns('fineer_overhead_max_per_m2', seedVasteKosten.fineer_overhead_max_per_m2),
-      toeslagMixmatch: getIns('toeslag_mixmatch_per_m2', seedVasteKosten.toeslag_mixmatch_per_m2),
-      toeslagGedraaidGeschoven: getIns('toeslag_gedraaid_geschoven_per_m2', seedVasteKosten.toeslag_gedraaid_geschoven_per_m2),
-      toeslagFotoFineerkeuze: getIns('toeslag_foto_fineerkeuze_per_m2', seedVasteKosten.toeslag_foto_fineerkeuze_per_m2),
-      toeslagPersoonlijkFineerkeuze: getIns('toeslag_persoonlijk_fineerkeuze_per_m2', seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2),
-      hotmeltCombs: (hmRes.data ?? []) as HotmeltCombinatie[],
     }
   }
 
@@ -542,21 +460,15 @@ export default function DashboardPage() {
         fineer_voor, fineer_tegen, hpl_voor, hpl_tegen,
         voegmethode, fineerkeuze, fineerkeuze_datum,
         bewerkingen, ruimte_indeling, ruimtes,
-        aantal, prijs_per_stuk, totaal_prijs,
-        baseplaten ( naam, dikte_mm ),
-        fineers_voor:fineers!orderlijst_regels_fineer_voor_fkey ( naam, gallery_foto_url ),
-        fineers_tegen:fineers!orderlijst_regels_fineer_tegen_fkey ( naam, gallery_foto_url ),
-        hpl_voor_data:hpl!orderlijst_regels_hpl_voor_fkey ( kleur, gallery_foto_url ),
-        hpl_tegen_data:hpl!orderlijst_regels_hpl_tegen_fkey ( kleur, gallery_foto_url )
+        aantal, prijs_per_stuk, totaal_prijs
       `).eq('orderlijst_id', lijst.id).order('id'),
       loadCatalog(supabase),
     ])
 
     const eigenRegels = (regelRes.data ?? []) as unknown as OrderlijstRegel[]
-    let displayRegels = eigenRegels
     let siblingRegels: OrderlijstRegel[] = []
 
-    // Live herberekening met gecombineerde staffel
+    // Zusterlijsten in dezelfde combinatiegroep meenemen voor de staffel
     if (lijst.combinatie_groep_id) {
       const zusterLijsten = orderlijsten.filter(
         l => l.combinatie_groep_id === lijst.combinatie_groep_id && l.id !== lijst.id
@@ -565,16 +477,18 @@ export default function DashboardPage() {
         const zusterRes = await Promise.all(
           zusterLijsten.map(l =>
             supabase.from('orderlijst_regels')
-              .select('id, basisplaat_id, categorie, fineer_voor, fineer_tegen, hpl_voor, hpl_tegen, bewerkingen, ruimte_indeling, aantal, prijs_per_stuk, totaal_prijs')
+              .select('id, basisplaat_id, categorie, fineer_voor, fineer_tegen, hpl_voor, hpl_tegen, voegmethode, fineerkeuze, bewerkingen, ruimte_indeling, aantal, prijs_per_stuk, totaal_prijs')
               .eq('orderlijst_id', l.id)
           )
         )
         siblingRegels = zusterRes.flatMap(r => (r.data ?? []) as unknown as OrderlijstRegel[])
-        const herberekend = herbereken([...eigenRegels, ...siblingRegels], catalog)
-        const eigenIds = new Set(eigenRegels.map(r => r.id))
-        displayRegels = herberekend.filter(r => eigenIds.has(r.id))
       }
     }
+
+    // Prijzen altijd live server-side herberekenen (incl. gecombineerde staffel)
+    const herberekend = await herberekenViaApi([...eigenRegels, ...siblingRegels])
+    const eigenIds = new Set(eigenRegels.map(r => r.id))
+    const displayRegels = herberekend.filter(r => eigenIds.has(r.id))
 
     setViewModal(v => ({ ...v, regels: displayRegels, siblingRegels, catalog, loading: false }))
   }
@@ -672,10 +586,8 @@ export default function DashboardPage() {
       const newRegels = v.regels.map(r =>
         r.id === regelId ? { ...r, aantal: Math.max(1, r.aantal + delta) } : r
       )
-      if (!v.catalog) return { ...v, regels: newRegels, hasChanges: true }
-      const herberekend = herbereken([...newRegels, ...v.siblingRegels], v.catalog)
-      const eigenIds = new Set(newRegels.map(r => r.id))
-      return { ...v, regels: herberekend.filter(r => eigenIds.has(r.id)), hasChanges: true }
+      scheduleHerbereken(newRegels, v.siblingRegels)
+      return { ...v, regels: newRegels, hasChanges: true }
     })
   }
 
@@ -688,8 +600,8 @@ export default function DashboardPage() {
     }
     setViewModal(v => {
       const newRegels = v.regels.filter(r => r.id !== regelId)
-      const herberekend = v.catalog ? herbereken(newRegels, v.catalog) : newRegels
-      return { ...v, regels: herberekend, deleteConfirm: null, hasChanges: newRegels.length !== v.regels.length ? v.hasChanges : false }
+      scheduleHerbereken(newRegels, v.siblingRegels)
+      return { ...v, regels: newRegels, deleteConfirm: null, hasChanges: newRegels.length !== v.regels.length ? v.hasChanges : false }
     })
     toast.success('Regel verwijderd')
   }
@@ -1149,14 +1061,19 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-3">
                   {viewModal.regels.map((regel, i) => {
-                    const plaatNaam = (regel.baseplaten as { naam: string; dikte_mm: number } | null)?.naam ?? '—'
-                    const plaatDikte = (regel.baseplaten as { naam: string; dikte_mm: number } | null)?.dikte_mm ?? '—'
-                    const fotoUrl = (regel.fineers_voor as { gallery_foto_url?: string | null } | null)?.gallery_foto_url
-                      ?? (regel.hpl_voor_data as { gallery_foto_url?: string | null } | null)?.gallery_foto_url
-                    const fineerVoorNaam = (regel.fineers_voor as { naam: string } | null)?.naam
-                    const fineerTegenNaam = (regel.fineers_tegen as { naam: string } | null)?.naam
-                    const hplVoorKleur = (regel.hpl_voor_data as { kleur: string } | null)?.kleur
-                    const hplTegenKleur = (regel.hpl_tegen_data as { kleur: string } | null)?.kleur
+                    const cat = viewModal.catalog
+                    const plaat = cat?.baseplaten.find(b => b.id === regel.basisplaat_id)
+                    const plaatNaam = plaat?.naam ?? '—'
+                    const plaatDikte = plaat?.dikte_mm ?? '—'
+                    const fineerVoor = regel.fineer_voor ? cat?.fineers.find(f => f.id === regel.fineer_voor) : undefined
+                    const fineerTegen = regel.fineer_tegen ? cat?.fineers.find(f => f.id === regel.fineer_tegen) : undefined
+                    const hplVoor = regel.hpl_voor ? cat?.hplList.find(h => h.id === regel.hpl_voor) : undefined
+                    const hplTegen = regel.hpl_tegen ? cat?.hplList.find(h => h.id === regel.hpl_tegen) : undefined
+                    const fotoUrl = fineerVoor?.gallery_foto_url ?? hplVoor?.gallery_foto_url
+                    const fineerVoorNaam = fineerVoor?.naam
+                    const fineerTegenNaam = fineerTegen?.naam
+                    const hplVoorKleur = hplVoor?.kleur
+                    const hplTegenKleur = hplTegen?.kleur
                     const bewerkingNamen = (regel.bewerkingen ?? [])
                       .map(id => viewModal.catalog?.bewerkingen.find(b => b.id === id)?.naam ?? id)
                       .join(', ')

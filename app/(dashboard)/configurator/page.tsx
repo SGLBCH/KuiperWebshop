@@ -10,35 +10,29 @@ import {
   seedFineers,
   seedHPL,
   seedBewerkingen,
-  seedStaffelFineerHPL,
-  seedStaffelKaal,
   seedOrderlijsten,
-  seedVasteKosten,
 } from '@/lib/seed-data'
-import { calculatePrice } from '@/lib/pricing'
-import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst, PricingData, HotmeltCombinatie, StaffelRegel } from '@/lib/types'
+import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst, PriceResult } from '@/lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
-type StaffelDbRow = { id: string; type: 'fineer_hpl' | 'kaal'; van_aantal: number; tot_aantal: number | null; marge_coefficient?: number | null; multiplier?: number | null }
 
-function parseStaffelRows(rows: StaffelDbRow[]) {
-  const toRegel = (row: StaffelDbRow): StaffelRegel | null => {
-    if (typeof row.marge_coefficient !== 'number') return null
-    return {
-      id: row.id,
-      van_aantal: row.van_aantal,
-      tot_aantal: row.tot_aantal,
-      marge_coefficient: row.marge_coefficient,
-      multiplier: typeof row.multiplier === 'number' ? row.multiplier : undefined,
-    }
-  }
-  return {
-    fineerHpl: rows.filter(row => row.type === 'fineer_hpl').map(toRegel).filter((row): row is StaffelRegel => row !== null),
-    kaal: rows.filter(row => row.type === 'kaal').map(toRegel).filter((row): row is StaffelRegel => row !== null),
-  }
+// Lege prijsuitkomst zolang de server nog geen berekening heeft teruggegeven.
+// De berekening zelf (inkoopprijzen, marges, staffels) leeft uitsluitend
+// server-side in /api/prijs.
+const EMPTY_PRICE_RESULT: PriceResult = {
+  basisplaat_kosten: 0, fineer_kosten: 0, hpl_kosten: 0,
+  bewerkingen_kosten: 0, vaste_toeslagen_kosten: 0, subtotaal: 0,
+  staffel_multiplier: 1, staffel_korting: 0, subtotaal_na_staffel: 0,
+  verzending: 0, totaal: 0, m2_per_plaat: 0, totaal_m2: 0,
 }
+
+// Kolommen die klanten mogen zien — bewust zonder inkoopprijzen en
+// calculatiefactoren (fallback zolang de catalogus-views nog niet bestaan)
+const BP_SAFE_COLS = 'id, naam, dikte_mm, breedte_mm, lengte_mm, beschikbaar, gallery_foto_url, volgorde'
+const FN_SAFE_COLS = 'id, naam, voegmethodes, voeg_standaard, fk_advies, info, status_lang, status_kort, gallery_foto_url, volgorde'
+const HPL_SAFE_COLS = 'id, kleur, hpl_afm_lang_b, hpl_afm_lang_l, hpl_afm_kort_b, hpl_afm_kort_l, info, status_lang, status_kort, gallery_foto_url'
 
 function isUitgesloten(list: UitsluitingRow[], tA: string, idA: string, tB: string, idB: string) {
   return list.some(u =>
@@ -149,49 +143,64 @@ export default function ConfiguratorPage() {
   const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
   const [uitsluitingen, setUitsluitingen] = useState<UitsluitingRow[]>([])
   const [insluitingen, setInsluitingen] = useState<InsluitingRow[]>([])
-  const [staffelFH, setStaffelFH] = useState(seedStaffelFineerHPL)
-  const [staffelKaal, setStaffelKaal] = useState(seedStaffelKaal)
-  const [verzendDrempel, setVerzendDrempel] = useState(1750)
-  const [verzendKosten, setVerzendKosten] = useState(25)
-  const [fineerlijm, setFineerlijm] = useState(seedVasteKosten.fineerlijm_per_m2)
-  const [schuurbanden, setSchuurbanden] = useState(seedVasteKosten.schuurbanden_per_m2)
-  const [hplLijm, setHplLijm] = useState(seedVasteKosten.hpl_lijm_per_m2)
-  const [puHotmelt, setPuHotmelt] = useState(seedVasteKosten.pu_hotmelt_per_m2)
-  const [basisMarkupFineerHpl, setBasisMarkupFineerHpl] = useState(seedVasteKosten.basisplaat_markup_fineer_hpl)
-  const [basisMarkupKaal, setBasisMarkupKaal] = useState(seedVasteKosten.basisplaat_markup_kaal)
-  const [hplCalculatieFactor, setHplCalculatieFactor] = useState(seedVasteKosten.hpl_calculatie_factor)
-  const [hplOverhead, setHplOverhead] = useState(seedVasteKosten.hpl_overhead_per_m2)
-  const [fineerOverheadMin, setFineerOverheadMin] = useState(seedVasteKosten.fineer_overhead_min_per_m2)
-  const [fineerOverheadMax, setFineerOverheadMax] = useState(seedVasteKosten.fineer_overhead_max_per_m2)
-  const [toeslagMixmatch, setToeslagMixmatch] = useState(seedVasteKosten.toeslag_mixmatch_per_m2)
-  const [toeslagGedraaidGeschoven, setToeslagGedraaidGeschoven] = useState(seedVasteKosten.toeslag_gedraaid_geschoven_per_m2)
-  const [toeslagFotoFineerkeuze, setToeslagFotoFineerkeuze] = useState(seedVasteKosten.toeslag_foto_fineerkeuze_per_m2)
-  const [toeslagPersoonlijkFineerkeuze, setToeslagPersoonlijkFineerkeuze] = useState(seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2)
-  const [hotmeltCombs, setHotmeltCombs] = useState<HotmeltCombinatie[]>([])
   const [fotoZoom, setFotoZoom] = useState<{ url: string; naam: string } | null>(null)
 
-  const pricingData: PricingData = {
-    staffel: state.categorie === 'kaal' ? staffelKaal : staffelFH,
-    verzend_drempel: verzendDrempel,
-    verzend_kosten: verzendKosten,
-    fineerlijm_per_m2: fineerlijm,
-    schuurbanden_per_m2: schuurbanden,
-    hpl_lijm_per_m2: hplLijm,
-    pu_hotmelt_per_m2: puHotmelt,
-    basisplaat_markup_fineer_hpl: basisMarkupFineerHpl,
-    basisplaat_markup_kaal: basisMarkupKaal,
-    hpl_calculatie_factor: hplCalculatieFactor,
-    hpl_overhead_per_m2: hplOverhead,
-    fineer_overhead_min_per_m2: fineerOverheadMin,
-    fineer_overhead_max_per_m2: fineerOverheadMax,
-    toeslag_mixmatch_per_m2: toeslagMixmatch,
-    toeslag_gedraaid_geschoven_per_m2: toeslagGedraaidGeschoven,
-    toeslag_foto_fineerkeuze_per_m2: toeslagFotoFineerkeuze,
-    toeslag_persoonlijk_fineerkeuze_per_m2: toeslagPersoonlijkFineerkeuze,
-    hotmelt_combinaties: hotmeltCombs,
-  }
+  // Prijs komt van de server (/api/prijs) — geen inkoopprijzen of marges in de browser
+  const [priceResult, setPriceResult] = useState<PriceResult>(EMPTY_PRICE_RESULT)
+  const [priceLoading, setPriceLoading] = useState(false)
 
-  const priceResult = calculatePrice(state, pricingData)
+  const plaatVoorPrijs = state.afmeting ?? state.basisplaat
+  const priceKey = JSON.stringify({
+    p: plaatVoorPrijs?.id ?? null,
+    c: state.categorie ?? null,
+    fv: state.fineer_voor?.id ?? null,
+    ft: state.fineer_tegen?.id ?? null,
+    hv: state.hpl_voor?.id ?? null,
+    ht: state.hpl_tegen?.id ?? null,
+    vg: state.voegmethode ?? null,
+    fk: state.fineerkeuze ?? null,
+    bw: state.bewerkingen.map(b => b.id),
+    n: state.aantal,
+  })
+
+  useEffect(() => {
+    const cfg = JSON.parse(priceKey)
+    if (!cfg.p || !cfg.n || cfg.n <= 0) {
+      setPriceResult(EMPTY_PRICE_RESULT)
+      return
+    }
+    let cancelled = false
+    setPriceLoading(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/prijs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'configurator',
+            config: {
+              basisplaat_id: cfg.p,
+              categorie: cfg.c,
+              fineer_voor_id: cfg.fv,
+              fineer_tegen_id: cfg.ft,
+              hpl_voor_id: cfg.hv,
+              hpl_tegen_id: cfg.ht,
+              voegmethode: cfg.vg,
+              fineerkeuze: cfg.fk,
+              bewerking_ids: cfg.bw,
+              aantal: cfg.n,
+            },
+          }),
+        })
+        if (res.ok) {
+          const json = await res.json()
+          if (!cancelled && json.result) setPriceResult(json.result)
+        }
+      } catch { /* behoud laatste bekende prijs */ }
+      finally { if (!cancelled) setPriceLoading(false) }
+    }, 350)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [priceKey])
 
   const getSupabase = useCallback(async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -217,36 +226,48 @@ export default function ConfiguratorPage() {
         .order('bijgewerkt_op', { ascending: false })
       if (lijsten) setOrderlijsten(lijsten)
 
-      // Load catalog (baseplaten, fineers, hpl, bewerkingen)
-      const [bpRes, fnRes, hplRes, bwRes, staffelRes, insRes, uitRes, inslRes, hmRes] = await Promise.all([
-        supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
-        supabase.from('fineers').select('*').order('volgorde'),
-        supabase.from('hpl').select('*').order('kleur'),
+      // Catalogus laden via veilige views (zonder inkoopprijzen).
+      // Fallback naar basistabellen met expliciete veilige kolommen
+      // zolang de views nog niet in Supabase zijn aangemaakt.
+      async function fetchCatalog(sb: NonNullable<Awaited<ReturnType<typeof getSupabase>>>) {
+        const [bp, fn, hpl] = await Promise.all([
+          sb.from('catalogus_baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
+          sb.from('catalogus_fineers').select('*').order('volgorde'),
+          sb.from('catalogus_hpl').select('*').order('kleur'),
+        ])
+        if (!bp.error && !fn.error && !hpl.error) {
+          return { bp: bp.data ?? [], fn: fn.data ?? [], hpl: hpl.data ?? [] }
+        }
+        const [bp2, fn2, hpl2] = await Promise.all([
+          sb.from('baseplaten').select(BP_SAFE_COLS).eq('beschikbaar', true).order('volgorde'),
+          sb.from('fineers').select(FN_SAFE_COLS).order('volgorde'),
+          sb.from('hpl').select(HPL_SAFE_COLS).order('kleur'),
+        ])
+        return { bp: bp2.data ?? [], fn: fn2.data ?? [], hpl: hpl2.data ?? [] }
+      }
+
+      const [catalog, bwRes, uitRes, inslRes] = await Promise.all([
+        fetchCatalog(supabase),
         supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
-        supabase.from('staffelregels').select('*').order('van_aantal'),
-        supabase.from('instellingen').select('*'),
         supabase.from('uitsluitingen').select('*'),
         supabase.from('insluitingen').select('*'),
-        supabase.from('hotmelt_combinaties').select('*'),
       ])
 
-      let bpData = (bpRes.data ?? []) as Baseplaat[]
-      let fnData = (fnRes.data ?? []) as Fineer[]
-      let hplData = (hplRes.data ?? []) as HPL[]
+      let bpData = catalog.bp as unknown as Baseplaat[]
+      let fnData = catalog.fn as unknown as Fineer[]
+      let hplData = catalog.hpl as unknown as HPL[]
       let bwData = (bwRes.data ?? []) as Bewerking[]
 
       if (bpData.length < 40 || fnData.length < 80 || bwData.length === 0) {
         const backfillRes = await fetch('/api/catalog/backfill', { method: 'POST' })
         if (backfillRes.ok) {
-          const [bpReload, fnReload, hplReload, bwReload] = await Promise.all([
-            supabase.from('baseplaten').select('*').eq('beschikbaar', true).order('volgorde'),
-            supabase.from('fineers').select('*').order('volgorde'),
-            supabase.from('hpl').select('*').order('kleur'),
+          const [catalogReload, bwReload] = await Promise.all([
+            fetchCatalog(supabase),
             supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
           ])
-          bpData = (bpReload.data ?? bpData) as Baseplaat[]
-          fnData = (fnReload.data ?? fnData) as Fineer[]
-          hplData = (hplReload.data ?? hplData) as HPL[]
+          bpData = catalogReload.bp as unknown as Baseplaat[]
+          fnData = catalogReload.fn as unknown as Fineer[]
+          hplData = catalogReload.hpl as unknown as HPL[]
           bwData = (bwReload.data ?? bwData) as Bewerking[]
         } else {
           console.warn('Catalogus backfill overgeslagen:', await backfillRes.text())
@@ -269,37 +290,6 @@ export default function ConfiguratorPage() {
           : s
         )
       }
-      if (insRes.data?.length) {
-        const ins = insRes.data
-        const get = (key: string, def: number) =>
-          parseFloat(ins.find(i => i.sleutel === key)?.waarde ?? String(def))
-        setVerzendDrempel(get('verzend_drempel', 1750))
-        setVerzendKosten(get('verzend_kosten', 25))
-        setFineerlijm(get('fineerlijm_per_m2', seedVasteKosten.fineerlijm_per_m2))
-        setSchuurbanden(get('schuurbanden_per_m2', seedVasteKosten.schuurbanden_per_m2))
-        setHplLijm(get('hpl_lijm_per_m2', seedVasteKosten.hpl_lijm_per_m2))
-        setPuHotmelt(get('pu_hotmelt_per_m2', seedVasteKosten.pu_hotmelt_per_m2))
-        setBasisMarkupFineerHpl(get('basisplaat_markup_fineer_hpl', seedVasteKosten.basisplaat_markup_fineer_hpl))
-        setBasisMarkupKaal(get('basisplaat_markup_kaal', seedVasteKosten.basisplaat_markup_kaal))
-        setHplCalculatieFactor(get('hpl_calculatie_factor', seedVasteKosten.hpl_calculatie_factor))
-        setHplOverhead(get('hpl_overhead_per_m2', seedVasteKosten.hpl_overhead_per_m2))
-        setFineerOverheadMin(get('fineer_overhead_min_per_m2', seedVasteKosten.fineer_overhead_min_per_m2))
-        setFineerOverheadMax(get('fineer_overhead_max_per_m2', seedVasteKosten.fineer_overhead_max_per_m2))
-        setToeslagMixmatch(get('toeslag_mixmatch_per_m2', seedVasteKosten.toeslag_mixmatch_per_m2))
-        setToeslagGedraaidGeschoven(get('toeslag_gedraaid_geschoven_per_m2', seedVasteKosten.toeslag_gedraaid_geschoven_per_m2))
-        setToeslagFotoFineerkeuze(get('toeslag_foto_fineerkeuze_per_m2', seedVasteKosten.toeslag_foto_fineerkeuze_per_m2))
-        setToeslagPersoonlijkFineerkeuze(get('toeslag_persoonlijk_fineerkeuze_per_m2', seedVasteKosten.toeslag_persoonlijk_fineerkeuze_per_m2))
-        const fhRaw = ins.find(i => i.sleutel === 'staffel_fineer_hpl')?.waarde
-        const kaalRaw = ins.find(i => i.sleutel === 'staffel_kaal')?.waarde
-        if (fhRaw) { try { setStaffelFH(JSON.parse(fhRaw)) } catch { /* keep seed */ } }
-        if (kaalRaw) { try { setStaffelKaal(JSON.parse(kaalRaw)) } catch { /* keep seed */ } }
-      }
-      if (staffelRes.data?.length) {
-        const fromTable = parseStaffelRows(staffelRes.data)
-        if (fromTable.fineerHpl.length > 0) setStaffelFH(fromTable.fineerHpl)
-        if (fromTable.kaal.length > 0) setStaffelKaal(fromTable.kaal)
-      }
-      if (hmRes.data) setHotmeltCombs(hmRes.data as HotmeltCombinatie[])
     }
     load()
   }, [getSupabase])
@@ -364,6 +354,10 @@ export default function ConfiguratorPage() {
   async function saveRegel(keepListForNext?: boolean) {
     if (!state.orderlijst_id || !state.basisplaat || !state.afmeting) {
       toast.error('Onvolledige configuratie')
+      return
+    }
+    if (priceLoading || priceResult.totaal <= 0) {
+      toast.error('Prijs wordt nog berekend — probeer het zo opnieuw')
       return
     }
     const supabase = await getSupabase()
@@ -932,9 +926,6 @@ export default function ConfiguratorPage() {
                             )}
                             <div>
                               <p className="text-sm font-medium text-gray-800">{h.kleur}</p>
-                              <p className="text-xs text-gray-400">
-                                {isLang ? `€ ${h.prijs_lang.toFixed(2)}/m²` : `€ ${h.prijs_kort.toFixed(2)}/m²`}
-                              </p>
                             </div>
                           </button>
                         )
