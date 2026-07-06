@@ -5,11 +5,8 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Kuiper Holland - B2B Webshop',
   description: 'B2B webshop voor fineer en HPL-gecoate plaatmaterialen voor interieurbouwers.',
-  icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
-  },
+  // Iconen komen uit de bestandsconventie: app/favicon.ico, app/icon.svg,
+  // app/icon.png en app/apple-icon.png (Next.js detecteert ze automatisch).
 }
 
 export default function RootLayout({
