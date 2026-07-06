@@ -12,21 +12,32 @@ import {
   seedBewerkingen,
   seedOrderlijsten,
 } from '@/lib/seed-data'
-import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst, PriceResult } from '@/lib/types'
+import type { ConfiguratorState, Baseplaat, Fineer, HPL, Bewerking, RuimteRegel, Orderlijst } from '@/lib/types'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type UitsluitingRow = { id: string; subject_type: string; subject_id: string; uitgesloten_type: string; uitgesloten_id: string; reden: string | null }
 type InsluitingRow = { id: string; subject_type: string; subject_id: string; ingesloten_type: string; ingesloten_id: string; reden: string | null }
 
-// Lege prijsuitkomst zolang de server nog geen berekening heeft teruggegeven.
-// De berekening zelf (inkoopprijzen, marges, staffels) leeft uitsluitend
-// server-side in /api/prijs.
-const EMPTY_PRICE_RESULT: PriceResult = {
-  basisplaat_kosten: 0, fineer_kosten: 0, hpl_kosten: 0,
-  bewerkingen_kosten: 0, vaste_toeslagen_kosten: 0, subtotaal: 0,
-  staffel_multiplier: 1, staffel_korting: 0, subtotaal_na_staffel: 0,
-  verzending: 0, totaal: 0, m2_per_plaat: 0, totaal_m2: 0,
+// Indicatieve richtprijs zoals de server die teruggeeft: een afgeronde
+// range plus een vanaf-prijs per stuk. De exacte calculatie (inkoopprijzen,
+// marges, staffels, prijsopbouw) verlaat de server nooit.
+type PrijsIndicatie = {
+  m2_per_plaat: number
+  totaal_m2: number
+  range_laag: number
+  range_hoog: number
+  per_stuk_vanaf: number
+  verzending_gratis: boolean
+  verzend_drempel: number
+  verzend_kosten: number
 }
+
+const LEGE_INDICATIE: PrijsIndicatie = {
+  m2_per_plaat: 0, totaal_m2: 0, range_laag: 0, range_hoog: 0,
+  per_stuk_vanaf: 0, verzending_gratis: false, verzend_drempel: 1750, verzend_kosten: 25,
+}
+
+const euro = (n: number) => n.toLocaleString('nl-NL')
 
 // Kolommen die klanten mogen zien — bewust zonder inkoopprijzen en
 // calculatiefactoren (fallback zolang de catalogus-views nog niet bestaan)
@@ -146,7 +157,7 @@ export default function ConfiguratorPage() {
   const [fotoZoom, setFotoZoom] = useState<{ url: string; naam: string } | null>(null)
 
   // Prijs komt van de server (/api/prijs) — geen inkoopprijzen of marges in de browser
-  const [priceResult, setPriceResult] = useState<PriceResult>(EMPTY_PRICE_RESULT)
+  const [indicatie, setIndicatie] = useState<PrijsIndicatie>(LEGE_INDICATIE)
   const [priceLoading, setPriceLoading] = useState(false)
 
   const plaatVoorPrijs = state.afmeting ?? state.basisplaat
@@ -166,7 +177,7 @@ export default function ConfiguratorPage() {
   useEffect(() => {
     const cfg = JSON.parse(priceKey)
     if (!cfg.p || !cfg.n || cfg.n <= 0) {
-      setPriceResult(EMPTY_PRICE_RESULT)
+      setIndicatie(LEGE_INDICATIE)
       return
     }
     let cancelled = false
@@ -194,7 +205,7 @@ export default function ConfiguratorPage() {
         })
         if (res.ok) {
           const json = await res.json()
-          if (!cancelled && json.result) setPriceResult(json.result)
+          if (!cancelled && json.indicatie) setIndicatie(json.indicatie)
         }
       } catch { /* behoud laatste bekende prijs */ }
       finally { if (!cancelled) setPriceLoading(false) }
@@ -356,35 +367,42 @@ export default function ConfiguratorPage() {
       toast.error('Onvolledige configuratie')
       return
     }
-    if (priceLoading || priceResult.totaal <= 0) {
+    if (priceLoading || indicatie.range_hoog <= 0) {
       toast.error('Prijs wordt nog berekend — probeer het zo opnieuw')
       return
     }
     const supabase = await getSupabase()
     if (supabase) {
-      const { error } = await supabase.from('orderlijst_regels').insert({
-        orderlijst_id: state.orderlijst_id,
-        basisplaat_id: state.basisplaat.id,
-        categorie: state.categorie,
-        fineer_voor: state.fineer_voor?.id ?? null,
-        fineer_tegen: state.fineer_tegen?.id ?? null,
-        hpl_voor: state.hpl_voor?.id ?? null,
-        hpl_tegen: state.hpl_tegen?.id ?? null,
-        voegmethode: state.voegmethode ?? null,
-        fineerkeuze: state.fineerkeuze ?? null,
-        fineerkeuze_datum: state.fineerkeuze_datum ?? null,
-        bewerkingen: (state.bewerkingen ?? []).map(b => b.id),
-        ruimte_indeling: state.ruimte_indeling ?? 'geen',
-        ruimtes: state.ruimtes ?? [],
-        aantal: state.aantal,
-        prijs_per_stuk: priceResult.totaal / (state.aantal || 1),
-        totaal_prijs: priceResult.totaal,
+      // Opslaan gebeurt server-side: daar wordt de exacte prijs berekend
+      // en direct in de orderlijst geschreven (RLS: alleen eigen lijsten).
+      const res = await fetch('/api/prijs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'opslaan',
+          orderlijst_id: state.orderlijst_id,
+          config: {
+            basisplaat_id: (state.afmeting ?? state.basisplaat).id,
+            categorie: state.categorie,
+            fineer_voor_id: state.fineer_voor?.id ?? null,
+            fineer_tegen_id: state.fineer_tegen?.id ?? null,
+            hpl_voor_id: state.hpl_voor?.id ?? null,
+            hpl_tegen_id: state.hpl_tegen?.id ?? null,
+            voegmethode: state.voegmethode ?? null,
+            fineerkeuze: state.fineerkeuze ?? null,
+            fineerkeuze_datum: state.fineerkeuze_datum ?? null,
+            bewerking_ids: (state.bewerkingen ?? []).map(b => b.id),
+            ruimte_indeling: state.ruimte_indeling ?? 'geen',
+            ruimtes: state.ruimtes ?? [],
+            aantal: state.aantal,
+          },
+        }),
       })
-      if (error) { toast.error('Opslaan mislukt: ' + error.message); return }
-      // Update bijgewerkt_op on the orderlijst
-      await supabase.from('orderlijsten')
-        .update({ bijgewerkt_op: new Date().toISOString() })
-        .eq('id', state.orderlijst_id)
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        toast.error('Opslaan mislukt: ' + (json.error ?? 'onbekende fout'))
+        return
+      }
     }
     toast.success(`Regel toegevoegd aan "${state.orderlijst_naam ?? 'Orderlijst'}"`)
     if (keepListForNext) {
@@ -1091,7 +1109,7 @@ export default function ConfiguratorPage() {
                     } else {
                       setM2Input(e.target.value)
                       const m2 = parseFloat(e.target.value) || 0
-                      const m2pp = priceResult.m2_per_plaat || 1
+                      const m2pp = indicatie.m2_per_plaat || 1
                       setState(s => ({ ...s, aantal: Math.max(1, Math.ceil(m2 / m2pp)) }))
                     }
                   }}
@@ -1186,12 +1204,16 @@ export default function ConfiguratorPage() {
                 <div className="w-px h-8 bg-green-200" />
                 <div>
                   <span className="text-xs text-green-700 font-medium">Totaal m²</span>
-                  <p className="text-xl font-bold text-green-800">{priceResult.totaal_m2.toFixed(2)}</p>
+                  <p className="text-xl font-bold text-green-800">{indicatie.totaal_m2.toFixed(2)}</p>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xs text-green-700">Indicatie</span>
-                <p className="text-lg font-bold text-green-800">€ {priceResult.totaal.toFixed(2)}</p>
+                <span className="text-xs text-green-700">Indicatieve richtprijs</span>
+                <p className="text-lg font-bold text-green-800">
+                  {indicatie.range_hoog > 0
+                    ? `€ ${euro(indicatie.range_laag)} – € ${euro(indicatie.range_hoog)}`
+                    : '—'}
+                </p>
               </div>
             </div>
           </div>
@@ -1240,39 +1262,51 @@ export default function ConfiguratorPage() {
                     <span className="text-gray-500">platen</span>
                   </div>
                 </div>
-                <SummaryRow label="Totaal m²" value={`${priceResult.totaal_m2.toFixed(2)} m²`} />
+                <SummaryRow label="Totaal m²" value={`${indicatie.totaal_m2.toFixed(2)} m²`} />
               </div>
 
-              {/* Price breakdown */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Prijsopbouw</h3>
-                <div className="space-y-2">
-                  <PriceRow label="Basisplaat" value={priceResult.basisplaat_kosten} />
-                  {priceResult.fineer_kosten > 0 && <PriceRow label="Fineer" value={priceResult.fineer_kosten} />}
-                  {priceResult.hpl_kosten > 0 && <PriceRow label="HPL" value={priceResult.hpl_kosten} />}
-                  {priceResult.bewerkingen_kosten > 0 && <PriceRow label="Bewerkingen" value={priceResult.bewerkingen_kosten} />}
-                  {priceResult.vaste_toeslagen_kosten > 0 && <PriceRow label="Vaste toeslagen" value={priceResult.vaste_toeslagen_kosten} />}
-                  <div className="border-t border-gray-200 pt-2">
-                    <PriceRow label="Subtotaal" value={priceResult.subtotaal} bold />
-                  </div>
-                  {priceResult.staffel_korting > 0 && (
-                    <div className="flex justify-between text-sm text-green-700">
-                      <span>Staffelkorting ({Math.round((1 - priceResult.staffel_multiplier) * 100)}%)</span>
-                      <span className="font-semibold">− € {priceResult.staffel_korting.toFixed(2)}</span>
-                    </div>
+              {/* Indicatieve richtprijs */}
+              <div className="bg-gray-50 rounded-xl p-4 flex flex-col">
+                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Uw richtprijs</h3>
+
+                <div className="bg-white rounded-xl border border-blue-100 p-5 text-center mb-4">
+                  <p className="text-xs text-gray-500 mb-1">Indicatieve richtprijs excl. BTW</p>
+                  <p className={`text-2xl font-bold text-blue-700 ${priceLoading ? 'opacity-40' : ''}`}>
+                    {indicatie.range_hoog > 0
+                      ? `€ ${euro(indicatie.range_laag)} – € ${euro(indicatie.range_hoog)}`
+                      : 'Wordt berekend…'}
+                  </p>
+                  {indicatie.per_stuk_vanaf > 0 && (
+                    <p className="text-sm text-gray-500 mt-1.5">
+                      vanaf € {euro(indicatie.per_stuk_vanaf)} per stuk
+                    </p>
                   )}
-                  <PriceRow
-                    label="Verzending"
-                    value={priceResult.verzending}
-                    override={priceResult.verzending === 0 ? 'Gratis' : undefined}
-                  />
-                  <div className="border-t-2 border-gray-300 pt-2 mt-2">
-                    <div className="flex justify-between">
-                      <span className="font-bold text-gray-800">TOTAAL excl. BTW</span>
-                      <span className="font-bold text-lg text-blue-700">€ {priceResult.totaal.toFixed(2)}</span>
-                    </div>
-                  </div>
                 </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Verzending</span>
+                    <span className={indicatie.verzending_gratis ? 'text-green-600 font-medium' : ''}>
+                      {indicatie.verzending_gratis
+                        ? 'Gratis'
+                        : `€ ${euro(indicatie.verzend_kosten)}`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    Gratis verzending vanaf € {euro(indicatie.verzend_drempel)}
+                  </p>
+                </div>
+
+                <div className="mt-3 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2.5">
+                  <p className="text-xs text-blue-700">
+                    💡 Grotere aantallen verlagen de prijs per stuk.
+                  </p>
+                </div>
+
+                <p className="text-xs text-gray-400 mt-auto pt-4">
+                  Dit is een indicatieve richtprijs. De definitieve prijs ontvangt u
+                  na bevestiging van uw offerteaanvraag door Kuiper Holland.
+                </p>
               </div>
             </div>
 
@@ -1342,17 +1376,6 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between text-sm">
       <span className="text-gray-500">{label}</span>
       <span className="font-medium text-gray-800 capitalize">{value}</span>
-    </div>
-  )
-}
-
-function PriceRow({ label, value, bold, override }: { label: string; value: number; bold?: boolean; override?: string }) {
-  return (
-    <div className={`flex justify-between text-sm ${bold ? 'font-semibold' : ''}`}>
-      <span className={bold ? 'text-gray-800' : 'text-gray-600'}>{label}</span>
-      <span className={bold ? 'text-gray-900' : 'text-gray-700'}>
-        {override ?? `€ ${value.toFixed(2)}`}
-      </span>
     </div>
   )
 }

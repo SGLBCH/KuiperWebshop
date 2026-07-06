@@ -357,19 +357,9 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: 'orderlijst',
-          regels: regels.map(r => ({
-            id: r.id,
-            basisplaat_id: r.basisplaat_id,
-            categorie: r.categorie,
-            fineer_voor: r.fineer_voor,
-            fineer_tegen: r.fineer_tegen,
-            hpl_voor: r.hpl_voor,
-            hpl_tegen: r.hpl_tegen,
-            voegmethode: r.voegmethode,
-            fineerkeuze: r.fineerkeuze,
-            bewerkingen: r.bewerkingen ?? [],
-            aantal: r.aantal,
-          })),
+          // Alleen IDs + aantallen — de server laadt de specificaties
+          // zelf uit de database (RLS: alleen eigen regels)
+          regels: regels.map(r => ({ id: r.id, aantal: r.aantal })),
         }),
       })
       if (!res.ok) return regels
@@ -1208,9 +1198,12 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="flex justify-between font-bold text-gray-800 pt-1 border-t border-gray-200">
-                      <span>Totaal</span>
+                      <span>Totaal (indicatief)</span>
                       <span>€ {totaal.toFixed(2)}</span>
                     </div>
+                    <p className="text-xs text-gray-400 pt-1">
+                      Indicatieve prijzen — definitief na bevestiging van uw offerteaanvraag.
+                    </p>
                   </div>
 
                   {/* Acties */}
