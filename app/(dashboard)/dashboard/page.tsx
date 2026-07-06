@@ -25,6 +25,10 @@ type OrderlijstRegel = {
   aantal: number
   prijs_per_stuk: number
   totaal_prijs: number
+  // Indicatieve richtprijs-band + m², server-side berekend via /api/prijs
+  range_laag?: number
+  range_hoog?: number
+  m2_totaal?: number
 }
 
 // Catalogus voor weergave (namen, foto's) — bewust ZONDER inkoopprijzen,
@@ -359,11 +363,18 @@ export default function DashboardPage() {
         }),
       })
       if (!res.ok) return regels
-      const json: { regels?: { id: string; prijs_per_stuk: number; totaal_prijs: number }[] } = await res.json()
+      const json: { regels?: { id: string; prijs_per_stuk: number; totaal_prijs: number; range_laag?: number; range_hoog?: number; m2_totaal?: number }[] } = await res.json()
       const byId = new Map((json.regels ?? []).map(r => [r.id, r]))
       return regels.map(r => {
         const p = byId.get(r.id)
-        return p ? { ...r, prijs_per_stuk: p.prijs_per_stuk, totaal_prijs: p.totaal_prijs } : r
+        return p ? {
+          ...r,
+          prijs_per_stuk: p.prijs_per_stuk,
+          totaal_prijs: p.totaal_prijs,
+          range_laag: p.range_laag,
+          range_hoog: p.range_hoog,
+          m2_totaal: p.m2_totaal,
+        } : r
       })
     } catch {
       return regels
@@ -385,7 +396,7 @@ export default function DashboardPage() {
             const u = byId.get(r.id)
             // Alleen overnemen als het aantal niet alweer is gewijzigd
             return u && u.aantal === r.aantal
-              ? { ...r, prijs_per_stuk: u.prijs_per_stuk, totaal_prijs: u.totaal_prijs }
+              ? { ...r, prijs_per_stuk: u.prijs_per_stuk, totaal_prijs: u.totaal_prijs, range_laag: u.range_laag, range_hoog: u.range_hoog, m2_totaal: u.m2_totaal }
               : r
           }),
         }
@@ -1193,14 +1204,25 @@ export default function DashboardPage() {
                                 className="w-7 h-7 flex items-center justify-center rounded-md border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 text-base font-bold leading-none"
                               >+</button>
                             </div>
-                            <p className="text-xs text-gray-500">
-                              {regel.prijs_per_stuk != null
-                                ? `€ ${regel.prijs_per_stuk.toFixed(2)} / stuk`
-                                : ''}
-                            </p>
-                            <p className="text-xs font-semibold text-gray-700">
-                              € {regel.totaal_prijs?.toFixed(2) ?? '—'}
-                            </p>
+                            {regel.m2_totaal != null && regel.m2_totaal > 0 && (
+                              <p className="text-xs text-gray-400">
+                                {regel.m2_totaal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
+                              </p>
+                            )}
+                            {regel.range_hoog != null && regel.range_hoog > 0 ? (
+                              <>
+                                <p className="text-xs text-gray-500 whitespace-nowrap">
+                                  € {Math.floor((regel.range_laag ?? 0) / regel.aantal).toLocaleString('nl-NL')} – € {Math.ceil(regel.range_hoog / regel.aantal).toLocaleString('nl-NL')} / stuk
+                                </p>
+                                <p className="text-xs font-semibold text-gray-700 whitespace-nowrap">
+                                  € {(regel.range_laag ?? 0).toLocaleString('nl-NL')} – € {regel.range_hoog.toLocaleString('nl-NL')}
+                                </p>
+                              </>
+                            ) : (
+                              <p className="text-xs font-semibold text-gray-700">
+                                € {regel.totaal_prijs?.toFixed(2) ?? '—'}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1213,6 +1235,10 @@ export default function DashboardPage() {
             {/* Footer */}
             {viewModal.regels.length > 0 && (() => {
               const materiaalkosten = viewModal.regels.reduce((s, r) => s + (r.totaal_prijs ?? 0), 0)
+              const heeftRanges = viewModal.regels.every(r => (r.range_hoog ?? 0) > 0)
+              const rangeLaag = viewModal.regels.reduce((s, r) => s + (r.range_laag ?? 0), 0)
+              const rangeHoog = viewModal.regels.reduce((s, r) => s + (r.range_hoog ?? 0), 0)
+              const totaalM2 = viewModal.regels.reduce((s, r) => s + (r.m2_totaal ?? 0), 0)
               const drempel = viewModal.catalog?.verzendDrempel ?? 1750
               const verzendKosten = viewModal.catalog?.verzendKosten ?? 25
               const verzending = materiaalkosten >= drempel ? 0 : verzendKosten
@@ -1221,9 +1247,19 @@ export default function DashboardPage() {
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl space-y-3">
                   {/* Prijsoverzicht */}
                   <div className="space-y-1 text-sm">
+                    {totaalM2 > 0 && (
+                      <div className="flex justify-between text-gray-600">
+                        <span>Totaal m²</span>
+                        <span>{totaalM2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-gray-600">
-                      <span>Materiaalkosten</span>
-                      <span>€ {materiaalkosten.toFixed(2)}</span>
+                      <span>Materiaalkosten (indicatief)</span>
+                      <span>
+                        {heeftRanges
+                          ? `€ ${rangeLaag.toLocaleString('nl-NL')} – € ${rangeHoog.toLocaleString('nl-NL')}`
+                          : `€ ${materiaalkosten.toFixed(2)}`}
+                      </span>
                     </div>
                     <div className="flex justify-between text-gray-600">
                       <span>Verzendkosten {materiaalkosten >= drempel && <span className="text-green-600 text-xs">(gratis boven € {drempel})</span>}</span>
@@ -1233,10 +1269,14 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex justify-between font-bold text-gray-800 pt-1 border-t border-gray-200">
                       <span>Totaal (indicatief)</span>
-                      <span>€ {totaal.toFixed(2)}</span>
+                      <span>
+                        {heeftRanges
+                          ? `€ ${(rangeLaag + verzending).toLocaleString('nl-NL')} – € ${(rangeHoog + verzending).toLocaleString('nl-NL')}`
+                          : `€ ${totaal.toFixed(2)}`}
+                      </span>
                     </div>
                     <p className="text-xs text-gray-400 pt-1">
-                      Indicatieve prijzen — definitief na bevestiging van uw offerteaanvraag.
+                      Indicatieve richtprijzen — de definitieve prijs ontvangt u na bevestiging van uw offerteaanvraag.
                     </p>
                   </div>
 

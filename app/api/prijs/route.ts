@@ -339,7 +339,7 @@ export async function POST(request: Request) {
 
     const computed = regels.map(regel => {
       const aantal = regel.aantal
-      if (aantal <= 0) return { id: regel.id, prijs_per_stuk: 0, totaal_prijs: 0 }
+      if (aantal <= 0) return { id: regel.id, prijs_per_stuk: 0, totaal_prijs: 0, range_laag: 0, range_hoog: 0, m2_totaal: 0 }
 
       const isKaal = regel.categorie === 'kaal'
       const mockStaffel: StaffelRegel[] = [{
@@ -372,10 +372,15 @@ export async function POST(request: Request) {
       // Afgerond op €5: indicatief voor de klant, en geen exact
       // terugrekenbare calculatie in de response
       const totaalAfgerond = Math.max(5, Math.round(result.subtotaal_na_staffel / 5) * 5)
+      // Dezelfde asymmetrische richtprijs-band als in de configurator (stap 7)
+      const range = maakRange(result.subtotaal_na_staffel)
       return {
         id: regel.id,
         prijs_per_stuk: Math.round((totaalAfgerond / aantal) * 100) / 100,
         totaal_prijs: totaalAfgerond,
+        range_laag: range.laag,
+        range_hoog: range.hoog,
+        m2_totaal: Math.round(result.totaal_m2 * 100) / 100,
       }
     })
 
