@@ -244,6 +244,10 @@ export async function POST(request: Request) {
     const perStukVanaf = aantal > 0 && range.laag > 0
       ? Math.max(1, Math.floor(range.laag / aantal))
       : 0
+    // Richtprijs per m² — dezelfde band, gedeeld door de totale oppervlakte.
+    // Fijner afgerond (op € 0,50) omdat m²-prijzen doorgaans lager liggen.
+    const perM2Laag = result.totaal_m2 > 0 ? Math.floor((range.laag / result.totaal_m2) * 2) / 2 : 0
+    const perM2Hoog = result.totaal_m2 > 0 ? Math.ceil((range.hoog / result.totaal_m2) * 2) / 2 : 0
 
     return NextResponse.json({
       indicatie: {
@@ -252,6 +256,8 @@ export async function POST(request: Request) {
         range_laag: range.laag,
         range_hoog: range.hoog,
         per_stuk_vanaf: perStukVanaf,
+        per_m2_laag: perM2Laag,
+        per_m2_hoog: perM2Hoog,
         verzending_gratis: result.verzending === 0,
         verzend_drempel: ctx.getIns('verzend_drempel', 1750),
         verzend_kosten: ctx.getIns('verzend_kosten', 25),
@@ -374,13 +380,18 @@ export async function POST(request: Request) {
       const totaalAfgerond = Math.max(5, Math.round(result.subtotaal_na_staffel / 5) * 5)
       // Dezelfde asymmetrische richtprijs-band als in de configurator (stap 7)
       const range = maakRange(result.subtotaal_na_staffel)
+      const m2 = result.totaal_m2
+      const perM2Laag = m2 > 0 ? Math.floor((range.laag / m2) * 2) / 2 : 0
+      const perM2Hoog = m2 > 0 ? Math.ceil((range.hoog / m2) * 2) / 2 : 0
       return {
         id: regel.id,
         prijs_per_stuk: Math.round((totaalAfgerond / aantal) * 100) / 100,
         totaal_prijs: totaalAfgerond,
         range_laag: range.laag,
         range_hoog: range.hoog,
-        m2_totaal: Math.round(result.totaal_m2 * 100) / 100,
+        m2_totaal: Math.round(m2 * 100) / 100,
+        per_m2_laag: perM2Laag,
+        per_m2_hoog: perM2Hoog,
       }
     })
 

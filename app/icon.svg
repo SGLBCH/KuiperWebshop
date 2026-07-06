@@ -1,0 +1,31 @@
+<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="lb" x1="10" y1="12" x2="48" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5e3a1e"/>
+      <stop offset="0.45" stop-color="#9e6b3f"/>
+      <stop offset="0.82" stop-color="#c89b6e"/>
+      <stop offset="1" stop-color="#6f4526"/>
+    </linearGradient>
+    <linearGradient id="rb" x1="90" y1="12" x2="52" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#5e3a1e"/>
+      <stop offset="0.45" stop-color="#9e6b3f"/>
+      <stop offset="0.82" stop-color="#c89b6e"/>
+      <stop offset="1" stop-color="#6f4526"/>
+    </linearGradient>
+  </defs>
+
+  <!-- linker fineerblad: smalle spitse punt bovenaan, uitwaaierende zeilvorm -->
+  <path d="M46 6 C 41 19, 12 34, 14 60 C 16 79, 30 90, 47 91 C 48 62, 49 25, 46 6 Z" fill="url(#lb)"/>
+  <!-- rechter fineerblad (book-matched, gespiegeld) -->
+  <path d="M54 6 C 59 19, 88 34, 86 60 C 84 79, 70 90, 53 91 C 52 62, 51 25, 54 6 Z" fill="url(#rb)"/>
+
+  <!-- subtiele nerf die de welving volgt -->
+  <g stroke="#3a2312" stroke-opacity="0.30" fill="none" stroke-width="1.5" stroke-linecap="round">
+    <path d="M44 16 C 28 24, 17 42, 20 64"/>
+    <path d="M43 32 C 32 39, 26 54, 29 74"/>
+  </g>
+  <g stroke="#3a2312" stroke-opacity="0.30" fill="none" stroke-width="1.5" stroke-linecap="round">
+    <path d="M56 16 C 72 24, 83 42, 80 64"/>
+    <path d="M57 32 C 68 39, 74 54, 71 74"/>
+  </g>
+</svg>

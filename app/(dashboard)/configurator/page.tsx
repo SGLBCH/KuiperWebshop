@@ -27,6 +27,8 @@ type PrijsIndicatie = {
   range_laag: number
   range_hoog: number
   per_stuk_vanaf: number
+  per_m2_laag: number
+  per_m2_hoog: number
   verzending_gratis: boolean
   verzend_drempel: number
   verzend_kosten: number
@@ -34,8 +36,12 @@ type PrijsIndicatie = {
 
 const LEGE_INDICATIE: PrijsIndicatie = {
   m2_per_plaat: 0, totaal_m2: 0, range_laag: 0, range_hoog: 0,
-  per_stuk_vanaf: 0, verzending_gratis: false, verzend_drempel: 1750, verzend_kosten: 25,
+  per_stuk_vanaf: 0, per_m2_laag: 0, per_m2_hoog: 0,
+  verzending_gratis: false, verzend_drempel: 1750, verzend_kosten: 25,
 }
+
+// €/m² netjes weergeven (halve euro's toegestaan)
+const euroM2 = (n: number) => n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const euro = (n: number) => n.toLocaleString('nl-NL')
 
@@ -1300,6 +1306,11 @@ export default function ConfiguratorPage() {
                   {indicatie.per_stuk_vanaf > 0 && (
                     <p className="text-sm text-gray-500 mt-1.5">
                       vanaf € {euro(indicatie.per_stuk_vanaf)} per stuk
+                    </p>
+                  )}
+                  {indicatie.per_m2_hoog > 0 && (
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      € {euroM2(indicatie.per_m2_laag)} – € {euroM2(indicatie.per_m2_hoog)} per m²
                     </p>
                   )}
                   {priceError && !priceLoading && (

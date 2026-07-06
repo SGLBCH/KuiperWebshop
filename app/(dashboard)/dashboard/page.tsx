@@ -29,6 +29,8 @@ type OrderlijstRegel = {
   range_laag?: number
   range_hoog?: number
   m2_totaal?: number
+  per_m2_laag?: number
+  per_m2_hoog?: number
 }
 
 // Catalogus voor weergave (namen, foto's) — bewust ZONDER inkoopprijzen,
@@ -363,7 +365,7 @@ export default function DashboardPage() {
         }),
       })
       if (!res.ok) return regels
-      const json: { regels?: { id: string; prijs_per_stuk: number; totaal_prijs: number; range_laag?: number; range_hoog?: number; m2_totaal?: number }[] } = await res.json()
+      const json: { regels?: { id: string; prijs_per_stuk: number; totaal_prijs: number; range_laag?: number; range_hoog?: number; m2_totaal?: number; per_m2_laag?: number; per_m2_hoog?: number }[] } = await res.json()
       const byId = new Map((json.regels ?? []).map(r => [r.id, r]))
       return regels.map(r => {
         const p = byId.get(r.id)
@@ -374,6 +376,8 @@ export default function DashboardPage() {
           range_laag: p.range_laag,
           range_hoog: p.range_hoog,
           m2_totaal: p.m2_totaal,
+          per_m2_laag: p.per_m2_laag,
+          per_m2_hoog: p.per_m2_hoog,
         } : r
       })
     } catch {
@@ -396,7 +400,7 @@ export default function DashboardPage() {
             const u = byId.get(r.id)
             // Alleen overnemen als het aantal niet alweer is gewijzigd
             return u && u.aantal === r.aantal
-              ? { ...r, prijs_per_stuk: u.prijs_per_stuk, totaal_prijs: u.totaal_prijs, range_laag: u.range_laag, range_hoog: u.range_hoog, m2_totaal: u.m2_totaal }
+              ? { ...r, prijs_per_stuk: u.prijs_per_stuk, totaal_prijs: u.totaal_prijs, range_laag: u.range_laag, range_hoog: u.range_hoog, m2_totaal: u.m2_totaal, per_m2_laag: u.per_m2_laag, per_m2_hoog: u.per_m2_hoog }
               : r
           }),
         }
@@ -1207,6 +1211,11 @@ export default function DashboardPage() {
                             {regel.m2_totaal != null && regel.m2_totaal > 0 && (
                               <p className="text-xs text-gray-400">
                                 {regel.m2_totaal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
+                              </p>
+                            )}
+                            {regel.per_m2_hoog != null && regel.per_m2_hoog > 0 && (
+                              <p className="text-xs text-gray-400 whitespace-nowrap">
+                                € {(regel.per_m2_laag ?? 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – € {regel.per_m2_hoog.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} /m²
                               </p>
                             )}
                             {regel.range_hoog != null && regel.range_hoog > 0 ? (
