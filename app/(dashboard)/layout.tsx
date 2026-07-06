@@ -44,6 +44,10 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
+  // Admin-navigatie alleen tonen aan echte admins. In demo-modus (geen
+  // Supabase geconfigureerd) tonen we 'm zodat de admin lokaal te previewen is.
+  const isAdmin = demoMode || profile?.rol === 'admin'
+
   // Block access if explicitly not approved (ignore null = possible fetch error)
   if (!demoMode && user && profile && profile.status !== 'goedgekeurd') {
     redirect('/pending')
@@ -92,12 +96,17 @@ export default async function DashboardLayout({
               >
                 Profiel
               </Link>
-              <Link
-                href="/admin"
-                className="px-3 py-2 text-sm font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
-              >
-                Admin
-              </Link>
+              {/* Admin-link alleen voor admins. De rol wordt server-side
+                  bepaald (getSession), dus dit is niet in de browser te
+                  manipuleren. De /admin-route is bovendien apart beveiligd. */}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="px-3 py-2 text-sm font-medium text-stone-500 hover:text-stone-800 hover:bg-stone-100 rounded-lg transition-colors"
+                >
+                  Admin
+                </Link>
+              )}
             </nav>
 
             {/* Right */}
