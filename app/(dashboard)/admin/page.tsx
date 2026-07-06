@@ -211,8 +211,33 @@ export default function AdminPage() {
         ? new Date(aanvraag.verstuurd_op).toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
         : '—'
 
-      const fmt = (n: number) => '€ ' + n.toLocaleString('nl-NL', { minimumFractionDigits: 2 })
 
+
+      const origin = window.location.origin
+
+      // Indicatieve richtprijs-band — identiek aan wat de klant ziet
+      // (asymmetrisch −5% / +15%, afgerond). De exacte opgeslagen prijs
+      // wordt bewust niet als kaal getal getoond.
+      const rondBedrag = (b: number, dir: 'omlaag' | 'omhoog') => {
+        if (b <= 0) return 0
+        const stap = b >= 1000 ? 25 : 5
+        return dir === 'omlaag' ? Math.floor(b / stap) * stap : Math.ceil(b / stap) * stap
+      }
+      const regelRange = (totaal: number, aantal: number) => {
+        const laag = rondBedrag(totaal * 0.95, 'omlaag')
+        const hoog = rondBedrag(totaal * 1.15, 'omhoog')
+        return {
+          laag, hoog,
+          stukLaag: aantal > 0 ? Math.floor(laag / aantal) : 0,
+          stukHoog: aantal > 0 ? Math.ceil(hoog / aantal) : 0,
+        }
+      }
+      const rangeFmt = (laag: number, hoog: number) =>
+        `€ ${laag.toLocaleString('nl-NL')} – € ${hoog.toLocaleString('nl-NL')}`
+      // Totalen accumuleren tijdens het opbouwen van de regels
+      let sumLaag = 0
+      let sumHoog = 0
+      let sumM2 = 0
 
       const fkAdviesLabel = (advies: string | undefined): string => {
         const labels: Record<string, string> = {
@@ -223,42 +248,6 @@ export default function AdminPage() {
         }
         return advies ? (labels[advies] ?? advies) : ''
       }
-      const regelRows = orderlijsten.flatMap(ol =>
-        ol.regels.map((r, idx) => {
-          const bp = r.basisplaat
-          const plaatNaam = bp ? `${bp.naam} — ${bp.dikte_mm}mm (${bp.breedte_mm}×${bp.lengte_mm}mm)` : '—'
-          const afwerking = r.categorie === 'fineer'
-            ? [r.fineer_voor?.naam ? `Voor: ${r.fineer_voor.naam}` : null, r.fineer_tegen?.naam ? `Tegen: ${r.fineer_tegen.naam}` : null].filter(Boolean).join(' | ')
-            : r.categorie === 'hpl'
-              ? [r.hpl_voor?.kleur ? `Voor: ${r.hpl_voor.kleur}` : null, r.hpl_tegen?.kleur ? `Tegen: ${r.hpl_tegen.kleur}` : null].filter(Boolean).join(' | ')
-              : 'Kaal'
-          const bewString = r.bewerkingen.length ? r.bewerkingen.map(bewNaam).join(', ') : '—'
-          const fotoUrl = r.fineer_voor?.gallery_foto_url ?? r.hpl_voor?.gallery_foto_url ?? null
-          const aantalStr = r.ruimte_indeling === 'per_ruimte' && r.ruimtes?.length
-            ? r.ruimtes.map((ru: { naam: string; aantal: number }) => `${ru.naam}: ${ru.aantal}×`).join('<br>')
-            : `${r.aantal}×`
-
-          return `
-            <tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
-              <td class="num">${idx + 1}</td>
-              <td>
-                <strong>${plaatNaam}</strong><br>
-                <span class="sub">Categorie: ${r.categorie}</span>
-                ${r.voegmethode ? `<br><span class="sub">Voeg: ${r.voegmethode}</span>` : ''}
-              </td>
-              <td>
-                ${afwerking}
-                ${fotoUrl ? `<br><img src="${fotoUrl}" alt="" class="thumb">` : ''}
-              </td>
-              <td class="bewerkingen">${bewString}</td>
-              <td class="num">${aantalStr}</td>
-              <td class="num money">${fmt(r.prijs_per_stuk)}</td>
-              <td class="num money"><strong>${fmt(r.totaal_prijs)}</strong></td>
-            </tr>
-            ${ol !== orderlijsten[0] || idx !== 0 ? '' : `<!-- first row -->`}`
-        }).join('')
-      )
-
       // Group headers per orderlijst
       const sections = orderlijsten.map(ol => `
         <tr class="ol-header">
@@ -280,6 +269,12 @@ export default function AdminPage() {
           const fkVoor = fkAdviesLabel(r.fineer_voor?.fk_advies)
           const fkTegen = r.fineer_tegen?.fk_advies && r.fineer_tegen.fk_advies !== r.fineer_voor?.fk_advies
             ? fkAdviesLabel(r.fineer_tegen.fk_advies) : ''
+          // m² en indicatieve richtprijs-range per regel
+          const m2 = bp ? (bp.breedte_mm / 1000) * (bp.lengte_mm / 1000) * r.aantal : 0
+          const rr = regelRange(r.totaal_prijs ?? 0, r.aantal)
+          sumLaag += rr.laag
+          sumHoog += rr.hoog
+          sumM2 += m2
           return `
             <tr class="${idx % 2 === 0 ? 'even' : 'odd'}">
               <td class="num">${idx + 1}</td>
@@ -296,8 +291,11 @@ export default function AdminPage() {
               </td>
               <td>${bewString}</td>
               <td class="num">${aantalStr}</td>
-              <td class="num money">${fmt(r.prijs_per_stuk)}</td>
-              <td class="num money"><strong>${fmt(r.totaal_prijs)}</strong></td>
+              <td class="num">${m2 > 0 ? m2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m²' : '—'}</td>
+              <td class="num money">
+                <strong>${rangeFmt(rr.laag, rr.hoog)}</strong>
+                ${rr.stukHoog > 0 ? `<br><span class="sub">${rangeFmt(rr.stukLaag, rr.stukHoog)} /stuk</span>` : ''}
+              </td>
             </tr>`
         }).join('')}
       `).join('')
@@ -311,8 +309,8 @@ export default function AdminPage() {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; padding: 24px 32px; }
   .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 2px solid #8B6F47; padding-bottom: 16px; }
-  .logo { font-size: 20px; font-weight: 700; color: #8B6F47; }
-  .logo span { font-size: 24px; margin-right: 6px; }
+  .logo { font-size: 20px; font-weight: 700; color: #8B6F47; display: flex; align-items: center; gap: 8px; }
+  .logo img { height: 30px; width: auto; }
   .meta { text-align: right; font-size: 10px; color: #666; }
   .meta strong { display: block; font-size: 14px; color: #1a1a1a; margin-bottom: 2px; }
   .klant-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
@@ -336,6 +334,7 @@ export default function AdminPage() {
   .thumb { width: 56px; height: 42px; object-fit: cover; border-radius: 3px; margin-top: 4px; border: 1px solid #ddd; }
   .fk-advies { display: inline-block; margin-top: 4px; padding: 2px 6px; background: #fff8ec; border: 1px solid #f0d090; border-radius: 4px; font-size: 9px; color: #7a5200; line-height: 1.5; }
   .totaal-row td { border-top: 2px solid #8B6F47; font-size: 12px; padding: 8px; }
+  .disclaimer { background: #fffbf0; border: 1px solid #f0e8c8; border-radius: 6px; padding: 10px 14px; font-size: 9.5px; color: #7a5200; line-height: 1.6; margin-bottom: 8px; }
   .footer { margin-top: 24px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 9px; color: #999; display: flex; justify-content: space-between; }
   @media print {
     body { padding: 0; }
@@ -347,7 +346,7 @@ export default function AdminPage() {
 <body>
   <div class="header">
     <div>
-      <div class="logo"><span>🪵</span>Kuiper Holland</div>
+      <div class="logo"><img src="${origin}/icon.png" alt="Kuiper Holland">Kuiper Holland</div>
       <div style="font-size:10px;color:#666;margin-top:4px;">Veneer &amp; HPL — Interieurbouw B2B</div>
     </div>
     <div class="meta">
@@ -371,7 +370,8 @@ export default function AdminPage() {
       <h3>Aanvraaginfo</h3>
       <p><strong>Project${orderlijsten.length > 1 ? 'en' : ''}:</strong> ${orderlijsten.map(o => o.naam).join(', ')}</p>
       <p><strong>Type:</strong> Offerte aanvraag</p>
-      <p><strong>Totaal:</strong> ${fmt(aanvraag.totaal_waarde ?? 0)}</p>
+      <p><strong>Richtprijs (indicatief):</strong> ${rangeFmt(sumLaag, sumHoog)}</p>
+      ${sumM2 > 0 ? `<p><strong>Totaal m²:</strong> ${sumM2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>` : ''}
       ${aanvraag.fineerkeuze_tekst ? `<p><strong>Fineerkeuze:</strong> ${aanvraag.fineerkeuze_tekst}</p>` : ''}
     </div>
   </div>
@@ -385,23 +385,31 @@ export default function AdminPage() {
   <table>
     <thead>
       <tr>
-        <th class="num" style="width:28px">#</th>
-        <th style="width:28%">Basisplaat</th>
-        <th style="width:22%">Afwerking</th>
-        <th style="width:18%">Bewerkingen</th>
-        <th class="num" style="width:14%">Aantallen</th>
-        <th class="num" style="width:9%">Stukprijs</th>
-        <th class="num" style="width:9%">Totaal</th>
+        <th class="num" style="width:26px">#</th>
+        <th style="width:26%">Basisplaat</th>
+        <th style="width:20%">Afwerking</th>
+        <th style="width:15%">Bewerkingen</th>
+        <th class="num" style="width:11%">Aantallen</th>
+        <th class="num" style="width:8%">m²</th>
+        <th class="num" style="width:16%">Richtprijs (indicatief)</th>
       </tr>
     </thead>
     <tbody>
       ${sections}
       <tr class="totaal-row">
-        <td colspan="6" style="text-align:right"><strong>Totaal aanvraag</strong></td>
-        <td class="num money"><strong>${fmt(aanvraag.totaal_waarde ?? 0)}</strong></td>
+        <td colspan="5" style="text-align:right"><strong>Totaal aanvraag (indicatief)</strong></td>
+        <td class="num">${sumM2 > 0 ? sumM2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' m²' : ''}</td>
+        <td class="num money"><strong>${rangeFmt(sumLaag, sumHoog)}</strong></td>
       </tr>
     </tbody>
   </table>
+
+  <div class="disclaimer">
+    <strong>Indicatieve richtprijzen</strong> — deze bedragen zijn een richtprijs
+    (band van circa −5% tot +15%). De definitieve prijs wordt door Kuiper Holland
+    vastgesteld bij het uitbrengen van de offerte. Verzendkosten zijn niet in
+    bovenstaande bedragen inbegrepen.
+  </div>
 
   <div class="footer">
     <span>Kuiper Holland B.V. — Intern gebruik</span>
@@ -1607,12 +1615,23 @@ export default function AdminPage() {
     )
   }
 
+  const nieuweAanvragenCount = aanvragen.filter(a => a.status === 'nieuw').length
+
   return (
     <>
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       <div className="flex items-center gap-3 mb-5">
         <h1 className="text-xl font-bold text-gray-800">Beheerpaneel</h1>
         <Badge variant="info">Admin</Badge>
+        {nieuweAanvragenCount > 0 && (
+          <button
+            onClick={() => setActiveTab('aanvragen')}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-full px-3 py-1 transition-colors"
+          >
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            {nieuweAanvragenCount} nieuwe aanvra{nieuweAanvragenCount === 1 ? 'ag' : 'gen'}
+          </button>
+        )}
       </div>
 
       {/* Tab bar */}
@@ -1629,6 +1648,9 @@ export default function AdminPage() {
             {tab.label}
             {tab.id === 'aanmeldingen' && aanmeldingen.length > 0 && (
               <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{aanmeldingen.length}</span>
+            )}
+            {tab.id === 'aanvragen' && nieuweAanvragenCount > 0 && (
+              <span className="ml-1.5 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5">{nieuweAanvragenCount}</span>
             )}
           </button>
         ))}
