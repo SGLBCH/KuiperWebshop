@@ -147,11 +147,13 @@ export default function ConfiguratorPage() {
   const [openAfmetingLengths, setOpenAfmetingLengths] = useState<Record<string, boolean>>({})
   const [voegInfoOpen, setVoegInfoOpen] = useState(false)
 
-  // Catalog state — loaded from Supabase, fallback to seed
-  const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
-  const [fineers, setFineers] = useState<Fineer[]>(seedFineers)
-  const [hplList, setHplList] = useState<HPL[]>(seedHPL)
-  const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
+  // Catalog state — geladen uit Supabase; start leeg zodat productie-klanten
+  // nooit (kort) demo-data zien. Seeds worden alleen in demo-modus gezet.
+  const [baseplaten, setBaseplaten] = useState<Baseplaat[]>([])
+  const [fineers, setFineers] = useState<Fineer[]>([])
+  const [hplList, setHplList] = useState<HPL[]>([])
+  const [bewerkingen, setBewerkingen] = useState<Bewerking[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(true)
   const [uitsluitingen, setUitsluitingen] = useState<UitsluitingRow[]>([])
   const [insluitingen, setInsluitingen] = useState<InsluitingRow[]>([])
   const [fotoZoom, setFotoZoom] = useState<{ url: string; naam: string } | null>(null)
@@ -159,6 +161,8 @@ export default function ConfiguratorPage() {
   // Prijs komt van de server (/api/prijs) — geen inkoopprijzen of marges in de browser
   const [indicatie, setIndicatie] = useState<PrijsIndicatie>(LEGE_INDICATIE)
   const [priceLoading, setPriceLoading] = useState(false)
+  const [priceError, setPriceError] = useState(false)
+  const [priceRetry, setPriceRetry] = useState(0)
 
   const plaatVoorPrijs = state.afmeting ?? state.basisplaat
   const priceKey = JSON.stringify({
@@ -205,13 +209,21 @@ export default function ConfiguratorPage() {
         })
         if (res.ok) {
           const json = await res.json()
-          if (!cancelled && json.indicatie) setIndicatie(json.indicatie)
+          if (!cancelled && json.indicatie) {
+            setIndicatie(json.indicatie)
+            setPriceError(false)
+          }
+        } else if (!cancelled) {
+          setPriceError(true)
         }
-      } catch { /* behoud laatste bekende prijs */ }
+      } catch {
+        // Behoud de laatste bekende prijs, maar meld dat verversen mislukte
+        if (!cancelled) setPriceError(true)
+      }
       finally { if (!cancelled) setPriceLoading(false) }
     }, 350)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [priceKey])
+  }, [priceKey, priceRetry])
 
   const getSupabase = useCallback(async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -223,10 +235,19 @@ export default function ConfiguratorPage() {
   useEffect(() => {
     async function load() {
       const supabase = await getSupabase()
-      if (!supabase) { setOrderlijsten(seedOrderlijsten); return }
+      if (!supabase) {
+        // Demo-modus (geen Supabase-env): toon seed-data
+        setBaseplaten(seedBaseplaten)
+        setFineers(seedFineers)
+        setHplList(seedHPL)
+        setBewerkingen(seedBewerkingen)
+        setOrderlijsten(seedOrderlijsten)
+        setCatalogLoading(false)
+        return
+      }
 
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setOrderlijsten(seedOrderlijsten); return }
+      if (!user) { setCatalogLoading(false); return }
 
       // Load orderlijsten
       const { data: lijsten } = await supabase
@@ -264,30 +285,13 @@ export default function ConfiguratorPage() {
         supabase.from('insluitingen').select('*'),
       ])
 
-      let bpData = catalog.bp as unknown as Baseplaat[]
-      let fnData = catalog.fn as unknown as Fineer[]
-      let hplData = catalog.hpl as unknown as HPL[]
-      let bwData = (bwRes.data ?? []) as Bewerking[]
+      const bpData = catalog.bp as unknown as Baseplaat[]
+      const fnData = catalog.fn as unknown as Fineer[]
+      const hplData = catalog.hpl as unknown as HPL[]
+      const bwData = (bwRes.data ?? []) as Bewerking[]
 
-      if (bpData.length < 40 || fnData.length < 80 || bwData.length === 0) {
-        const backfillRes = await fetch('/api/catalog/backfill', { method: 'POST' })
-        if (backfillRes.ok) {
-          const [catalogReload, bwReload] = await Promise.all([
-            fetchCatalog(supabase),
-            supabase.from('bewerkingen').select('*').eq('beschikbaar', true).order('volgorde'),
-          ])
-          bpData = catalogReload.bp as unknown as Baseplaat[]
-          fnData = catalogReload.fn as unknown as Fineer[]
-          hplData = catalogReload.hpl as unknown as HPL[]
-          bwData = (bwReload.data ?? bwData) as Bewerking[]
-        } else {
-          console.warn('Catalogus backfill overgeslagen:', await backfillRes.text())
-        }
-      }
-
-      // In a real Supabase session we must only expose database rows here.
-      // Seed IDs are readable demo keys, but orderlijst_regels stores UUID
-      // foreign keys; mixing the two causes invalid UUID errors when saving.
+      // In productie tonen we uitsluitend database-rijen — nooit seed-data.
+      // (Seed-IDs zijn geen UUIDs en zouden bij opslaan bovendien fouten geven.)
       setBaseplaten(bpData)
       setFineers(fnData)
       setHplList(hplData)
@@ -301,6 +305,7 @@ export default function ConfiguratorPage() {
           : s
         )
       }
+      setCatalogLoading(false)
     }
     load()
   }, [getSupabase])
@@ -556,6 +561,18 @@ export default function ConfiguratorPage() {
             <p className="text-sm text-gray-500 mb-4">
               Open de materiaalgroep die past bij uw werk. Na de materiaalkeuze kiest u dikte en plaatafmeting.
             </p>
+
+            {catalogLoading && (
+              <div className="text-center py-10 text-gray-400 text-sm">
+                Catalogus laden…
+              </div>
+            )}
+            {!catalogLoading && baseplaten.length === 0 && (
+              <div className="text-center py-10 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-sm text-amber-800 font-medium mb-1">De catalogus kon niet worden geladen.</p>
+                <p className="text-xs text-amber-700">Vernieuw de pagina of probeer het later opnieuw.</p>
+              </div>
+            )}
 
             <div className="space-y-3">
               {baseplaatGroupEntries.map(group => (
@@ -1109,8 +1126,12 @@ export default function ConfiguratorPage() {
                     } else {
                       setM2Input(e.target.value)
                       const m2 = parseFloat(e.target.value) || 0
-                      const m2pp = indicatie.m2_per_plaat || 1
-                      setState(s => ({ ...s, aantal: Math.max(1, Math.ceil(m2 / m2pp)) }))
+                      const m2pp = indicatie.m2_per_plaat
+                      // Zolang de plaat-m² nog niet bekend is (prijs laadt),
+                      // niet omrekenen — anders klopt het aantal niet
+                      if (m2pp > 0) {
+                        setState(s => ({ ...s, aantal: Math.max(1, Math.ceil(m2 / m2pp)) }))
+                      }
                     }
                   }}
                   className="w-24 text-center text-2xl font-bold border border-gray-300 rounded-xl py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1274,12 +1295,25 @@ export default function ConfiguratorPage() {
                   <p className={`text-2xl font-bold text-blue-700 ${priceLoading ? 'opacity-40' : ''}`}>
                     {indicatie.range_hoog > 0
                       ? `€ ${euro(indicatie.range_laag)} – € ${euro(indicatie.range_hoog)}`
-                      : 'Wordt berekend…'}
+                      : priceError ? '—' : 'Wordt berekend…'}
                   </p>
                   {indicatie.per_stuk_vanaf > 0 && (
                     <p className="text-sm text-gray-500 mt-1.5">
                       vanaf € {euro(indicatie.per_stuk_vanaf)} per stuk
                     </p>
+                  )}
+                  {priceError && !priceLoading && (
+                    <div className="mt-2">
+                      <p className="text-xs text-red-600 mb-1.5">
+                        De prijs kon niet worden berekend.
+                      </p>
+                      <button
+                        onClick={() => setPriceRetry(n => n + 1)}
+                        className="text-xs font-semibold text-blue-600 hover:underline"
+                      >
+                        Opnieuw proberen
+                      </button>
+                    </div>
                   )}
                 </div>
 

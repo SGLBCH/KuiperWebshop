@@ -82,33 +82,23 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
     setSending(true)
     try {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-      if (url && url !== 'https://your-project.supabase.co' && orderlijstId) {
-        const { createClient } = await import('@/lib/supabase/client')
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) { toast.error('Niet ingelogd'); setSending(false); return }
-
-        // Haal totaalwaarde op uit regels
-        const { data: regels } = await supabase
-          .from('orderlijst_regels')
-          .select('totaal_prijs')
-          .eq('orderlijst_id', orderlijstId)
-        const totaal = (regels ?? []).reduce((s, r) => s + (r.totaal_prijs ?? 0), 0)
-
-        // Insert aanvraag
-        const { error: aanvraagError } = await supabase.from('aanvragen').insert({
-          user_id: user.id,
-          orderlijst_ids: [orderlijstId],
-          type: 'offerte',
-          bericht: bericht || null,
-          totaal_waarde: totaal,
-          status: 'nieuw',
+      if (url && url !== 'https://your-project.supabase.co') {
+        if (!orderlijstId) {
+          toast.error('Orderlijst niet gevonden — probeer het opnieuw')
+          return
+        }
+        // Server-side: berekent het totaal (incl. verzending), slaat de
+        // aanvraag op en verstuurt bevestigingsmails
+        const res = await fetch('/api/aanvraag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderlijst_id: orderlijstId, bericht: bericht || null }),
         })
-        if (aanvraagError) { toast.error('Versturen mislukt: ' + aanvraagError.message); setSending(false); return }
-
-        // Update orderlijst status naar verstuurd
-        await supabase.from('orderlijsten').update({ status: 'verstuurd' }).eq('id', orderlijstId)
-
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          toast.error('Versturen mislukt: ' + (json.error ?? 'onbekende fout'))
+          return
+        }
         onSent?.()
       }
       setModalStep(2)
@@ -262,6 +252,7 @@ export default function DashboardPage() {
   const [combining, setCombining] = useState(false)
   const [sendModal, setSendModal] = useState<{ open: boolean; naam: string; id?: string }>({ open: false, naam: '' })
   const [newListModal, setNewListModal] = useState(false)
+  const [deleteListConfirm, setDeleteListConfirm] = useState<{ id: string; naam: string } | null>(null)
   const [viewModal, setViewModal] = useState<{
     open: boolean
     lijst: Orderlijst | null
@@ -320,8 +311,13 @@ export default function DashboardPage() {
 
   async function deleteList(id: string) {
     setOrderlijsten(lists => lists.filter(l => l.id !== id))
+    setDeleteListConfirm(null)
     const supabase = await getSupabase()
-    if (supabase) await supabase.from('orderlijsten').delete().eq('id', id)
+    if (supabase) {
+      const { error } = await supabase.from('orderlijsten').delete().eq('id', id)
+      if (error) toast.error('Verwijderen mislukt: ' + error.message)
+      else toast.success('Orderlijst verwijderd')
+    }
   }
 
   async function createNewList(naam: string) {
@@ -654,6 +650,12 @@ export default function DashboardPage() {
                 </button>
               )
             })}
+            <Link
+              href="/configurator"
+              className="flex-1 py-2 text-sm font-medium rounded-lg text-center text-blue-600 hover:bg-blue-50 transition-colors"
+            >
+              ⚙️ Config
+            </Link>
           </div>
 
           {/* SHOP TAB */}
@@ -955,7 +957,7 @@ export default function DashboardPage() {
                               Verstuur
                             </button>
                             <button
-                              onClick={() => deleteList(lijst.id)}
+                              onClick={() => setDeleteListConfirm({ id: lijst.id, naam: lijst.naam })}
                               className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
                             >
                               Verwijder
@@ -1016,6 +1018,38 @@ export default function DashboardPage() {
         onClose={() => setNewListModal(false)}
         onCreate={createNewList}
       />
+
+      {/* Bevestiging orderlijst verwijderen */}
+      {deleteListConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 max-w-sm w-full text-center">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-base font-bold text-gray-800 mb-1">Orderlijst verwijderen?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              <span className="font-medium text-gray-700">{deleteListConfirm.naam}</span> en alle
+              bijbehorende regels worden permanent verwijderd.
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setDeleteListConfirm(null)}
+                className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Annuleren
+              </button>
+              <button
+                onClick={() => deleteList(deleteListConfirm.id)}
+                className="px-5 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg"
+              >
+                Ja, verwijder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bekijk modal */}
       {viewModal.open && viewModal.lijst && (

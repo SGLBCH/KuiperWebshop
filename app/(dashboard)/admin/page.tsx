@@ -4,10 +4,6 @@ import { useState, useEffect, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import { Badge } from '@/components/ui/Badge'
 import {
-  seedBaseplaten,
-  seedFineers,
-  seedHPL,
-  seedBewerkingen,
   seedStaffelFineerHPL,
   seedStaffelKaal,
   seedInstellingen,
@@ -86,12 +82,6 @@ const DEMO_KLANTEN = [
   { id: 'k3', naam: 'Tom van Dijk', bedrijf: 'Van Dijk Timmerwerk', rol: 'kijker', status: 'gedeactiveerd', last_seen: '2026-04-20', clicks: 12 },
 ]
 
-const DEMO_AANVRAGEN = [
-  { id: 'av1', project: 'Keuken Renovatie', klant: 'Jan de Vries', waarde: 3480, aangemaakt: '2026-04-28', verstuurd: '2026-04-28', bericht: true, fineerkeuze: 'fabriek' },
-  { id: 'av2', project: 'Kastenwand Slaapkamer', klant: 'Sandra Peters', waarde: 1875, aangemaakt: '2026-04-10', verstuurd: '2026-04-10', bericht: false, fineerkeuze: 'persoonlijk' },
-  { id: 'av3', project: 'Wandpanelen Woonkamer', klant: 'Jan de Vries', waarde: 920, aangemaakt: '2026-03-22', verstuurd: '2026-03-22', bericht: false, fineerkeuze: 'foto_kuiper' },
-]
-
 type AanmeldingRow = { id: string; naam: string; bedrijf: string; email: string; datum: string; rol: 'kijker' | 'calculator' | 'inkoper' }
 type KlantRow = { id: string; naam: string; bedrijf: string; rol: string; status: string; last_seen: string; clicks: number }
 type AanvraagRow = {
@@ -104,6 +94,21 @@ type AanvraagRow = {
   verstuurd: string
   bericht: string | null
   fineerkeuze: string | null
+  status: string
+}
+
+const AANVRAAG_STATUS_LABELS: Record<string, string> = {
+  nieuw: 'Nieuw',
+  in_behandeling: 'In behandeling',
+  afgerond: 'Afgerond',
+  geannuleerd: 'Geannuleerd',
+}
+
+const AANVRAAG_STATUS_KLEUREN: Record<string, string> = {
+  nieuw: 'bg-blue-100 text-blue-700',
+  in_behandeling: 'bg-amber-100 text-amber-700',
+  afgerond: 'bg-green-100 text-green-700',
+  geannuleerd: 'bg-gray-200 text-gray-500',
 }
 type ConceptRow = { id: string; naam: string; klant: string; status: string; bijgewerkt: string }
 
@@ -117,7 +122,7 @@ export default function AdminPage() {
   const [rolKeuzes, setRolKeuzes] = useState<Record<string, string>>({})
 
   // Klanten state
-  const [klanten, setKlanten] = useState<KlantRow[]>(DEMO_KLANTEN)
+  const [klanten, setKlanten] = useState<KlantRow[]>([])
 
   // Aanvragen state
   const [aanvragen, setAanvragen] = useState<AanvraagRow[]>([])
@@ -421,10 +426,10 @@ export default function AdminPage() {
     }
   }
 
-  // Prijzen state
-  const [baseplaten, setBaseplaten] = useState<Baseplaat[]>(seedBaseplaten)
-  const [fineers, setFineers] = useState<Fineer[]>(seedFineers)
-  const [hplList, setHplList] = useState<HPL[]>(seedHPL)
+  // Prijzen state — start leeg; wordt gevuld uit de database (seed alleen in demo-modus)
+  const [baseplaten, setBaseplaten] = useState<Baseplaat[]>([])
+  const [fineers, setFineers] = useState<Fineer[]>([])
+  const [hplList, setHplList] = useState<HPL[]>([])
   const [priceFilters, setPriceFilters] = useState({ baseplaten: '', fineers: '', hpl: '' })
   const [priceSortAsc, setPriceSortAsc] = useState({ baseplaten: true, fineers: true, hpl: true })
   const [priceSectionsOpen, setPriceSectionsOpen] = useState({ baseplaten: true, fineers: true, hpl: true })
@@ -510,8 +515,7 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data } = await supabase.from('baseplaten').select('*').order('volgorde', { ascending: true })
-      if (data && data.length >= 40) setBaseplaten(data as Baseplaat[])
-      else setBaseplaten(seedBaseplaten)
+      if (data) setBaseplaten(data as Baseplaat[])
     } catch { /* keep current */ }
   }
 
@@ -520,8 +524,7 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data } = await supabase.from('fineers').select('*').order('volgorde', { ascending: true })
-      if (data && data.length >= 80) setFineers(data as Fineer[])
-      else setFineers(seedFineers)
+      if (data) setFineers(data as Fineer[])
     } catch { /* keep current */ }
   }
 
@@ -856,7 +859,7 @@ export default function AdminPage() {
   )
 
   // Bewerkingen state
-  const [bewerkingen, setBewerkingen] = useState<Bewerking[]>(seedBewerkingen)
+  const [bewerkingen, setBewerkingen] = useState<Bewerking[]>([])
   const [fineerlijm, setFineerlijm] = useState(seedVasteKosten.fineerlijm_per_m2)
   const [schuurbanden, setSchuurbanden] = useState(seedVasteKosten.schuurbanden_per_m2)
   const [hplLijm, setHplLijm] = useState(seedVasteKosten.hpl_lijm_per_m2)
@@ -892,6 +895,18 @@ export default function AdminPage() {
 
   // Aanvragen sub-tab
   const [aanvraagSubTab, setAanvraagSubTab] = useState<'definitief' | 'concepten'>('definitief')
+  const [aanvraagStatusFilter, setAanvraagStatusFilter] = useState<string>('open')
+
+  async function updateAanvraagStatus(id: string, status: string) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') return
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
+    const { error } = await supabase.from('aanvragen').update({ status }).eq('id', id)
+    if (error) { toast.error('Status wijzigen mislukt: ' + error.message); return }
+    setAanvragen(list => list.map(a => a.id === id ? { ...a, status } : a))
+    toast.success(`Aanvraag → ${AANVRAAG_STATUS_LABELS[status] ?? status}`)
+  }
 
   // Concept inzien modal
   const [conceptModal, setConceptModal] = useState<{
@@ -953,7 +968,7 @@ export default function AdminPage() {
           .in('status', ['goedgekeurd', 'gedeactiveerd'])
           .order('aangemaakt_op', { ascending: false })
 
-        if (klantenData && klantenData.length > 0) {
+        if (klantenData) {
           const userIds = klantenData.map(k => k.id)
 
           // Activiteit: tel orderlijsten en aanvragen per gebruiker
@@ -984,15 +999,14 @@ export default function AdminPage() {
           }))
         }
 
-        // Fetch aanvragen (verstuurd door klanten)
+        // Fetch aanvragen (alle statussen — filtering gebeurt in de UI)
         const { data: aanvraagData } = await supabase
           .from('aanvragen')
           .select(`
-            id, bericht, totaal_waarde, verstuurd_op,
+            id, bericht, totaal_waarde, verstuurd_op, status,
             fineerkeuze_tekst, orderlijst_ids,
             profiles ( naam, bedrijf )
           `)
-          .eq('status', 'nieuw')
           .order('verstuurd_op', { ascending: false })
 
         if (aanvraagData) {
@@ -1020,6 +1034,7 @@ export default function AdminPage() {
                 verstuurd: a.verstuurd_op?.split('T')[0] ?? '—',
                 bericht: a.bericht ?? null,
                 fineerkeuze: a.fineerkeuze_tekst ?? null,
+                status: a.status ?? 'nieuw',
               }
             })
           )
@@ -1046,18 +1061,19 @@ export default function AdminPage() {
           })))
         }
 
-        // Fetch catalog data
+        // Fetch catalog data — altijd de échte database-inhoud tonen,
+        // nooit terugvallen op seed-data (dat verhult wat er echt in staat)
         const { data: bpData } = await supabase.from('baseplaten').select('*').order('volgorde', { ascending: true })
-        setBaseplaten(bpData && bpData.length >= 40 ? bpData as Baseplaat[] : seedBaseplaten)
+        if (bpData) setBaseplaten(bpData as Baseplaat[])
 
         const { data: fnData } = await supabase.from('fineers').select('*').order('volgorde', { ascending: true })
-        setFineers(fnData && fnData.length >= 80 ? fnData as Fineer[] : seedFineers)
+        if (fnData) setFineers(fnData as Fineer[])
 
         const { data: hplData } = await supabase.from('hpl').select('*').order('volgorde', { ascending: true })
-        if (hplData && hplData.length > 0) setHplList(hplData as HPL[])
+        if (hplData) setHplList(hplData as HPL[])
 
         const { data: bwData } = await supabase.from('bewerkingen').select('*').order('volgorde', { ascending: true })
-        setBewerkingen(bwData && bwData.length > 0 ? bwData as Bewerking[] : seedBewerkingen)
+        if (bwData) setBewerkingen(bwData as Bewerking[])
 
         const { data: uitData } = await supabase.from('uitsluitingen').select('*')
         if (uitData) setUitsluitingen(uitData as UitsluitingRow[])
@@ -1098,9 +1114,8 @@ export default function AdminPage() {
 
       } catch (err) {
         console.error('Failed to load admin data:', err)
-        // Keep demo data on error
-        setAanmeldingen(DEMO_AANMELDINGEN)
-        setRolKeuzes(Object.fromEntries(DEMO_AANMELDINGEN.map(a => [a.id, 'kijker'])))
+        // Nooit demo-data tonen bij een fout — dat maskeert het probleem
+        toast.error('Admin-data laden mislukt. Vernieuw de pagina.')
       } finally {
         setLoadingData(false)
       }
@@ -1766,56 +1781,122 @@ export default function AdminPage() {
               ))}
             </div>
 
-            {aanvraagSubTab === 'definitief' && (
-              aanvragen.length === 0 ? (
-                <div className="text-center py-10 text-gray-400">
-                  <p className="text-3xl mb-2">📬</p>
-                  <p className="text-sm">Nog geen verstuurde aanvragen.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200">
-                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Project</th>
-                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Klant</th>
-                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Bedrijf</th>
-                        <th className="text-right py-2 px-3 font-semibold text-gray-600">Waarde</th>
-                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Verstuurd</th>
-                        <th className="text-center py-2 px-3 font-semibold text-gray-600">Bericht</th>
-                        <th className="text-left py-2 px-3 font-semibold text-gray-600">Fineerkeuze</th>
-                        <th className="py-2 px-3"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {aanvragen.map(a => (
-                        <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="py-3 px-3 font-medium text-gray-800">{a.project}</td>
-                          <td className="py-3 px-3 text-gray-600">{a.klant}</td>
-                          <td className="py-3 px-3 text-gray-600">{a.bedrijf}</td>
-                          <td className="py-3 px-3 text-right font-medium">€ {a.waarde.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</td>
-                          <td className="py-3 px-3 text-gray-400 text-xs">{a.verstuurd}</td>
-                          <td className="py-3 px-3 text-center" title={a.bericht ?? ''}>{a.bericht ? '💬' : '—'}</td>
-                          <td className="py-3 px-3 text-xs text-gray-500">{a.fineerkeuze ? `🪵 ${a.fineerkeuze}` : '—'}</td>
-                          <td className="py-3 px-3">
-                            <button
-                              onClick={() => printAanvraag(a.id)}
-                              title="Afdrukken / PDF"
-                              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors whitespace-nowrap"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                              </svg>
-                              Afdrukken
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            {aanvraagSubTab === 'definitief' && (() => {
+              const gefilterd = aanvragen.filter(a =>
+                aanvraagStatusFilter === 'alle' ? true
+                : aanvraagStatusFilter === 'open' ? (a.status === 'nieuw' || a.status === 'in_behandeling')
+                : a.status === aanvraagStatusFilter
               )
-            )}
+              return (
+                <>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {([
+                      ['open', 'Open'],
+                      ['nieuw', 'Nieuw'],
+                      ['in_behandeling', 'In behandeling'],
+                      ['afgerond', 'Afgerond'],
+                      ['geannuleerd', 'Geannuleerd'],
+                      ['alle', 'Alle'],
+                    ] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        onClick={() => setAanvraagStatusFilter(key)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-colors
+                          ${aanvraagStatusFilter === key ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {gefilterd.length === 0 ? (
+                    <div className="text-center py-10 text-gray-400">
+                      <p className="text-3xl mb-2">📬</p>
+                      <p className="text-sm">Geen aanvragen in deze weergave.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-2 px-3 font-semibold text-gray-600">Project</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-600">Klant</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-600">Bedrijf</th>
+                            <th className="text-right py-2 px-3 font-semibold text-gray-600">Waarde</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-600">Verstuurd</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-600">Status</th>
+                            <th className="text-center py-2 px-3 font-semibold text-gray-600">Bericht</th>
+                            <th className="py-2 px-3"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {gefilterd.map(a => (
+                            <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-3 px-3 font-medium text-gray-800">{a.project}</td>
+                              <td className="py-3 px-3 text-gray-600">{a.klant}</td>
+                              <td className="py-3 px-3 text-gray-600">{a.bedrijf}</td>
+                              <td className="py-3 px-3 text-right font-medium">€ {a.waarde.toLocaleString('nl-NL', { minimumFractionDigits: 2 })}</td>
+                              <td className="py-3 px-3 text-gray-400 text-xs">{a.verstuurd}</td>
+                              <td className="py-3 px-3">
+                                <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${AANVRAAG_STATUS_KLEUREN[a.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                                  {AANVRAAG_STATUS_LABELS[a.status] ?? a.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-3 text-center" title={a.bericht ?? ''}>{a.bericht ? '💬' : '—'}</td>
+                              <td className="py-3 px-3">
+                                <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                                  {a.status === 'nieuw' && (
+                                    <button
+                                      onClick={() => updateAanvraagStatus(a.id, 'in_behandeling')}
+                                      className="px-2.5 py-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors whitespace-nowrap"
+                                    >
+                                      → In behandeling
+                                    </button>
+                                  )}
+                                  {(a.status === 'nieuw' || a.status === 'in_behandeling') && (
+                                    <>
+                                      <button
+                                        onClick={() => updateAanvraagStatus(a.id, 'afgerond')}
+                                        className="px-2.5 py-1.5 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded-lg transition-colors whitespace-nowrap"
+                                      >
+                                        ✓ Afgerond
+                                      </button>
+                                      <button
+                                        onClick={() => updateAanvraagStatus(a.id, 'geannuleerd')}
+                                        className="px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors whitespace-nowrap"
+                                      >
+                                        ✕
+                                      </button>
+                                    </>
+                                  )}
+                                  {(a.status === 'afgerond' || a.status === 'geannuleerd') && (
+                                    <button
+                                      onClick={() => updateAanvraagStatus(a.id, 'in_behandeling')}
+                                      className="px-2.5 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors whitespace-nowrap"
+                                    >
+                                      Heropen
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => printAanvraag(a.id)}
+                                    title="Afdrukken / PDF"
+                                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors whitespace-nowrap"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                    Print
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
 
             {aanvraagSubTab === 'concepten' && (
               concepten.length === 0 ? (

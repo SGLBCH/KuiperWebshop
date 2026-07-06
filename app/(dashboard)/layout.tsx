@@ -3,11 +3,11 @@ import { redirect } from 'next/navigation'
 import { LogoutButton } from '@/components/ui/LogoutButton'
 
 async function getSession() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
+    return { demoMode: true, user: null, profile: null }
+  }
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    if (!supabaseUrl || supabaseUrl === 'https://your-project.supabase.co') {
-      return { demoMode: true, user: null, profile: null }
-    }
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -27,7 +27,9 @@ async function getSession() {
 
     return { demoMode: false, user, profile }
   } catch {
-    return { demoMode: true, user: null, profile: null }
+    // Bij een Supabase-storing NOOIT terugvallen op demo-modus:
+    // behandel als niet-ingelogd zodat de auth-gating intact blijft
+    return { demoMode: false, user: null, profile: null }
   }
 }
 

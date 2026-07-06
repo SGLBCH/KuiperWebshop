@@ -137,7 +137,9 @@ export default function SignupPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
 
-      // 1. Create auth user
+      // Alle bedrijfsgegevens gaan mee als user-metadata; de database-trigger
+      // handle_new_user zet ze in het profiel. (Een directe insert vanuit de
+      // client wordt door RLS geweigerd en ging daardoor verloren.)
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: persoonlijkEmail,
         password: wachtwoord,
@@ -145,6 +147,10 @@ export default function SignupPage() {
           data: {
             naam: `${voornaam} ${achternaam}`,
             bedrijf: bedrijfsnaam,
+            branche,
+            adres: `${adres}, ${postcode} ${stad}`,
+            kvk: kvk || null,
+            order_confirm_email: factuurEmail || persoonlijkEmail,
           },
         },
       })
@@ -157,26 +163,6 @@ export default function SignupPage() {
       if (!authData.user) {
         toast.error('Aanmaken mislukt, probeer opnieuw.')
         return
-      }
-
-      // 2. Insert into public.profiles so admin can see the pending request
-      const { error: profileError } = await supabase.from('profiles').insert({
-        id: authData.user.id,
-        email: persoonlijkEmail,
-        naam: `${voornaam} ${achternaam}`,
-        bedrijf: bedrijfsnaam,
-        branche,
-        adres: `${adres}, ${postcode} ${stad}`,
-        kvk: kvk || null,
-        order_confirm_email: factuurEmail || persoonlijkEmail,
-        rol: 'kijker',
-        status: 'pending',
-      })
-
-      if (profileError) {
-        // Auth user was created but profile failed — still show success,
-        // admin can fix manually via Supabase dashboard
-        console.error('Profile insert error:', profileError.message)
       }
 
       setStep(4)
