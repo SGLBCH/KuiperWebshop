@@ -38,7 +38,7 @@ function isForeignKeyReferenceError(error: SupabaseErrorLike) {
 }
 
 function withoutFineerCalculationColumns(payload: Record<string, unknown>) {
-  const { calculatie_factor, plak_overhead_per_m2, ...legacyPayload } = payload
+  const { calculatie_factor, plak_overhead_per_m2, snijwijzes, snijwijze_advies, ...legacyPayload } = payload
   return legacyPayload
 }
 
@@ -86,6 +86,7 @@ type AanmeldingRow = { id: string; naam: string; bedrijf: string; email: string;
 type KlantRow = { id: string; naam: string; bedrijf: string; rol: string; status: string; last_seen: string; clicks: number }
 type AanvraagRow = {
   id: string
+  user_id?: string
   project: string
   klant: string
   bedrijf: string
@@ -462,6 +463,7 @@ export default function AdminPage() {
     prijs_tegenzijde_lang: 0, prijs_tegenzijde_kort: 0,
     calculatie_factor: 1.6, plak_overhead_per_m2: 10.5,
     voegmethodes: [], voeg_standaard: '', fk_advies: 'fabriek',
+    snijwijzes: [], snijwijze_advies: [],
     status_lang: 'beschikbaar', status_kort: 'beschikbaar',
     info: '', gallery_foto_url: '',
   })
@@ -505,6 +507,7 @@ export default function AdminPage() {
         prijs_tegenzijde_lang: f.prijs_tegenzijde_lang, prijs_tegenzijde_kort: f.prijs_tegenzijde_kort,
         calculatie_factor: f.calculatie_factor ?? 1.6, plak_overhead_per_m2: f.plak_overhead_per_m2 ?? 10.5,
         voegmethodes: [...f.voegmethodes], voeg_standaard: f.voeg_standaard, fk_advies: f.fk_advies,
+        snijwijzes: [...(f.snijwijzes ?? [])], snijwijze_advies: [...(f.snijwijze_advies ?? [])],
         status_lang: f.status_lang, status_kort: f.status_kort, info: f.info ?? '', gallery_foto_url: f.gallery_foto_url ?? '',
         volgorde: f.volgorde ?? 0 })
     }
@@ -898,7 +901,7 @@ export default function AdminPage() {
   // Insluiting modal state
   const emptyInsForm = { subject_type: 'basisplaat', subject_id: '', ingesloten_type: 'bewerking', ingesloten_id: '', reden: '' }
   const [insModal, setInsModal] = useState<{ open: boolean; form: typeof emptyInsForm }>({ open: false, form: emptyInsForm })
-  const emptyBw = { naam: '', beschrijving: '', prijs: 0, prijs_type: 'per_m2' as 'per_m2' | 'per_order', compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, standaard_geselecteerd: false, volgorde: 0 }
+  const emptyBw = { naam: '', beschrijving: '', prijs: 0, prijs_type: 'per_m2' as 'per_m2' | 'per_order', compatibiliteit: ['kaal', 'fineer', 'hpl'] as string[], beschikbaar: true, standaard_geselecteerd: false, volgorde: 0, keuzegroep: '' }
   const [bwModal, setBwModal] = useState<{ open: boolean; item: Bewerking | null; form: typeof emptyBw }>({ open: false, item: null, form: emptyBw })
 
   // Aanvragen sub-tab
@@ -914,6 +917,133 @@ export default function AdminPage() {
     if (error) { toast.error('Status wijzigen mislukt: ' + error.message); return }
     setAanvragen(list => list.map(a => a.id === id ? { ...a, status } : a))
     toast.success(`Aanvraag → ${AANVRAAG_STATUS_LABELS[status] ?? status}`)
+  }
+
+  // ── Offerte-editor ─────────────────────────────────────────────────────────
+  type OfferteRegelForm = { omschrijving: string; aantal: number; m2: number; prijs_per_m2: number; ondergrens: number }
+  const legeOfferteModal = {
+    open: false, laden: false, bezig: false,
+    aanvraagId: null as string | null, offerteId: null as string | null,
+    userId: null as string | null, klant: '', status: 'concept',
+    regels: [] as OfferteRegelForm[], vervaldatum: '', opmerking: '',
+  }
+  const [offerteModal, setOfferteModal] = useState(legeOfferteModal)
+
+  async function openOfferteModal(a: AanvraagRow) {
+    const standaardVervaldatum = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0]
+    setOfferteModal({ ...legeOfferteModal, open: true, laden: true, aanvraagId: a.id, klant: `${a.klant} (${a.bedrijf})` })
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+
+      // Bestaande offerte voor deze aanvraag hergebruiken
+      const { data: bestaand } = await supabase
+        .from('offertes').select('*').eq('aanvraag_id', a.id).limit(1).maybeSingle()
+      if (bestaand) {
+        setOfferteModal(m => ({
+          ...m, laden: false,
+          offerteId: bestaand.id, userId: bestaand.user_id, status: bestaand.status,
+          regels: (bestaand.regels ?? []).map((r: OfferteRegelForm) => ({ ...r, ondergrens: r.ondergrens ?? 0 })),
+          vervaldatum: bestaand.vervaldatum ?? standaardVervaldatum,
+          opmerking: bestaand.opmerking ?? '',
+        }))
+        return
+      }
+
+      // Nieuw: regels van de aanvraag-orderlijst(en) als startpunt
+      const { data: aanvraag } = await supabase
+        .from('aanvragen').select('user_id, orderlijst_ids').eq('id', a.id).single()
+      if (!aanvraag) { toast.error('Aanvraag niet gevonden'); setOfferteModal(legeOfferteModal); return }
+
+      const ids: string[] = aanvraag.orderlijst_ids ?? []
+      const regels: OfferteRegelForm[] = []
+      for (const olId of ids) {
+        const { data: dbRegels } = await supabase
+          .from('orderlijst_regels')
+          .select(`aantal, totaal_prijs, categorie, snijwijze,
+            basisplaat:baseplaten ( naam, dikte_mm, breedte_mm, lengte_mm ),
+            fv:fineers!orderlijst_regels_fineer_voor_fkey ( naam ),
+            hv:hpl!orderlijst_regels_hpl_voor_fkey ( kleur )`)
+          .eq('orderlijst_id', olId)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(dbRegels ?? []).forEach((r: any) => {
+          const bp = Array.isArray(r.basisplaat) ? r.basisplaat[0] : r.basisplaat
+          const fv = Array.isArray(r.fv) ? r.fv[0] : r.fv
+          const hv = Array.isArray(r.hv) ? r.hv[0] : r.hv
+          const m2 = bp ? (bp.breedte_mm / 1000) * (bp.lengte_mm / 1000) * r.aantal : 0
+          const afwerking = r.categorie === 'fineer' ? (fv?.naam ?? 'fineer')
+            : r.categorie === 'hpl' ? (hv?.kleur ?? 'HPL') : 'kaal'
+          const exactPerM2 = m2 > 0 ? Math.round(((r.totaal_prijs ?? 0) / m2) * 100) / 100 : 0
+          regels.push({
+            omschrijving: `${bp ? `${bp.naam} ${bp.dikte_mm}mm ${bp.lengte_mm}×${bp.breedte_mm}` : 'Plaat'} — ${afwerking}${r.snijwijze ? ` (${r.snijwijze})` : ''}`,
+            aantal: r.aantal,
+            m2: Math.round(m2 * 100) / 100,
+            prijs_per_m2: exactPerM2,
+            // Hoe ver de admin kan zakken: de -5% ondergrens van de band
+            ondergrens: Math.round(exactPerM2 * 0.95 * 100) / 100,
+          })
+        })
+      }
+
+      setOfferteModal(m => ({
+        ...m, laden: false, userId: aanvraag.user_id,
+        regels, vervaldatum: standaardVervaldatum,
+      }))
+    } catch (e) {
+      console.error(e)
+      toast.error('Offerte openen mislukt')
+      setOfferteModal(legeOfferteModal)
+    }
+  }
+
+  async function slaOfferteOp(verstuur: boolean) {
+    const m = offerteModal
+    if (!m.userId) { toast.error('Klant onbekend'); return }
+    if (m.regels.length === 0) { toast.error('Voeg minimaal één regel toe'); return }
+    setOfferteModal(v => ({ ...v, bezig: true }))
+    const toastId = toast.loading(verstuur ? 'Offerte versturen…' : 'Offerte opslaan…')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const payload = {
+        aanvraag_id: m.aanvraagId,
+        user_id: m.userId,
+        regels: m.regels.map(({ omschrijving, aantal, m2, prijs_per_m2 }) => ({ omschrijving, aantal, m2, prijs_per_m2 })),
+        vervaldatum: m.vervaldatum || null,
+        opmerking: m.opmerking || null,
+      }
+      let offerteId = m.offerteId
+      if (offerteId) {
+        const { error } = await supabase.from('offertes').update(payload).eq('id', offerteId)
+        if (error) { toast.error('Opslaan mislukt: ' + error.message, { id: toastId }); return }
+      } else {
+        const { data, error } = await supabase.from('offertes').insert(payload).select('id').single()
+        if (error || !data) { toast.error('Opslaan mislukt: ' + (error?.message ?? ''), { id: toastId }); return }
+        offerteId = data.id
+        setOfferteModal(v => ({ ...v, offerteId }))
+      }
+
+      if (!verstuur) {
+        toast.success('Offerte opgeslagen als concept', { id: toastId })
+        return
+      }
+
+      const res = await fetch('/api/offerte/verstuur', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offerte_id: offerteId }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        toast.error('Versturen mislukt: ' + (json.error ?? 'onbekende fout'), { id: toastId })
+        return
+      }
+      toast.success(`Offerte ${json.offertenummer ?? ''} verstuurd naar de klant`, { id: toastId })
+      if (m.aanvraagId) updateAanvraagStatus(m.aanvraagId, 'in_behandeling')
+      setOfferteModal(legeOfferteModal)
+    } finally {
+      setOfferteModal(v => ({ ...v, bezig: false }))
+    }
   }
 
   // Concept inzien modal
@@ -1011,7 +1141,7 @@ export default function AdminPage() {
         const { data: aanvraagData } = await supabase
           .from('aanvragen')
           .select(`
-            id, bericht, totaal_waarde, verstuurd_op, status,
+            id, user_id, bericht, totaal_waarde, verstuurd_op, status,
             fineerkeuze_tekst, orderlijst_ids,
             profiles ( naam, bedrijf )
           `)
@@ -1034,6 +1164,7 @@ export default function AdminPage() {
               const profiel = a.profiles as { naam: string; bedrijf: string } | null
               return {
                 id: a.id,
+                user_id: a.user_id as string,
                 project: projectNaam,
                 klant: profiel?.naam ?? '—',
                 bedrijf: profiel?.bedrijf ?? '—',
@@ -1242,6 +1373,12 @@ export default function AdminPage() {
           .update({ status: 'goedgekeurd', rol: gekozenRol })
           .eq('id', id)
         if (error) { toast.error('Opslaan mislukt: ' + error.message); return }
+        // Goedkeuringsmail naar klant + kopie naar admin (best effort)
+        fetch('/api/notify/goedkeuring', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: id }),
+        }).catch(() => {})
       }
     } catch { /* ignore network errors in demo */ }
     setAanmeldingen(a => a.filter(x => x.id !== id))
@@ -1289,7 +1426,7 @@ export default function AdminPage() {
   }
 
   function openBwEdit(b: Bewerking) {
-    setBwModal({ open: true, item: b, form: { naam: b.naam, beschrijving: b.beschrijving, prijs: b.prijs, prijs_type: b.prijs_type ?? 'per_m2', compatibiliteit: [...b.compatibiliteit], beschikbaar: b.beschikbaar, standaard_geselecteerd: b.standaard_geselecteerd ?? false, volgorde: b.volgorde } })
+    setBwModal({ open: true, item: b, form: { naam: b.naam, beschrijving: b.beschrijving, prijs: b.prijs, prijs_type: b.prijs_type ?? 'per_m2', compatibiliteit: [...b.compatibiliteit], beschikbaar: b.beschikbaar, standaard_geselecteerd: b.standaard_geselecteerd ?? false, volgorde: b.volgorde, keuzegroep: b.keuzegroep ?? '' } })
   }
 
   async function saveBw() {
@@ -1300,11 +1437,11 @@ export default function AdminPage() {
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       if (item) {
-        const { error } = await supabase.from('bewerkingen').update({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, prijs_type: form.prijs_type, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).eq('id', item.id)
+        const { error } = await supabase.from('bewerkingen').update({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, prijs_type: form.prijs_type, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde, keuzegroep: form.keuzegroep || null }).eq('id', item.id)
         if (error) { toast.error('Opslaan mislukt: ' + error.message, { id: toastId }); return }
         setBewerkingen(b => b.map(x => x.id === item.id ? { ...x, ...form } as Bewerking : x))
       } else {
-        const { data, error } = await supabase.from('bewerkingen').insert({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, prijs_type: form.prijs_type, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde }).select().single()
+        const { data, error } = await supabase.from('bewerkingen').insert({ naam: form.naam, beschrijving: form.beschrijving, prijs: form.prijs, prijs_type: form.prijs_type, compatibiliteit: form.compatibiliteit, beschikbaar: form.beschikbaar, standaard_geselecteerd: form.standaard_geselecteerd, volgorde: form.volgorde, keuzegroep: form.keuzegroep || null }).select().single()
         if (error) { toast.error('Toevoegen mislukt: ' + error.message, { id: toastId }); return }
         setBewerkingen(b => [...b, data as Bewerking])
       }
@@ -1898,6 +2035,12 @@ export default function AdminPage() {
                                       Heropen
                                     </button>
                                   )}
+                                  <button
+                                    onClick={() => openOfferteModal(a)}
+                                    className="px-2.5 py-1.5 text-xs font-semibold text-white bg-[#8B6F47] hover:bg-[#75593a] rounded-lg transition-colors whitespace-nowrap"
+                                  >
+                                    📄 Offerte
+                                  </button>
                                   <button
                                     onClick={() => printAanvraag(a.id)}
                                     title="Afdrukken / PDF"
@@ -2748,6 +2891,50 @@ export default function AdminPage() {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       )}
                     </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Snijwijze (beschikbaar voor klant)</label>
+                        <div className="flex flex-wrap gap-3 pt-1.5">
+                          {(['quartier', 'dosse'] as const).map(sw => (
+                            <label key={sw} className="flex items-center gap-1 text-sm capitalize">
+                              <input type="checkbox" checked={(fnForm.snijwijzes ?? []).includes(sw)}
+                                onChange={e => {
+                                  const next = e.target.checked
+                                    ? [...(fnForm.snijwijzes ?? []), sw]
+                                    : (fnForm.snijwijzes ?? []).filter(x => x !== sw)
+                                  setFnForm(f => ({
+                                    ...f,
+                                    snijwijzes: next,
+                                    // Advies mag alleen op beschikbare opties staan
+                                    snijwijze_advies: (f.snijwijze_advies ?? []).filter(a => next.includes(a)),
+                                  }))
+                                }} className="w-3.5 h-3.5" />
+                              {sw}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Snijwijze-advies (badge &quot;Aanbevolen&quot;)</label>
+                        <div className="flex flex-wrap gap-3 pt-1.5">
+                          {(fnForm.snijwijzes ?? []).length === 0 && (
+                            <span className="text-xs text-gray-400">Selecteer eerst een snijwijze</span>
+                          )}
+                          {(fnForm.snijwijzes ?? []).map(sw => (
+                            <label key={sw} className="flex items-center gap-1 text-sm capitalize">
+                              <input type="checkbox" checked={(fnForm.snijwijze_advies ?? []).includes(sw)}
+                                onChange={e => {
+                                  const next = e.target.checked
+                                    ? [...(fnForm.snijwijze_advies ?? []), sw]
+                                    : (fnForm.snijwijze_advies ?? []).filter(x => x !== sw)
+                                  setFnForm(f => ({ ...f, snijwijze_advies: next }))
+                                }} className="w-3.5 h-3.5" />
+                              {sw}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">FK Advies</label>
@@ -3070,6 +3257,18 @@ export default function AdminPage() {
                       <option value="per_m2">Per m² (× oppervlak × aantal)</option>
                       <option value="per_order">Vast per order (eenmalig vast bedrag)</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Keuzegroep (optioneel)</label>
+                    <input type="text" value={bwModal.form.keuzegroep}
+                      onChange={e => setBwModal(m => ({ ...m, form: { ...m.form, keuzegroep: e.target.value } }))}
+                      placeholder="bijv. zagen of schuren"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p className="text-xs text-gray-400 mt-1">
+                      Bewerkingen met dezelfde keuzegroep sluiten elkaar uit — de klant kiest er verplicht één
+                      (bijv. groep &quot;zagen&quot;: Zaagwerk / Ongezaagd).
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -3549,6 +3748,126 @@ export default function AdminPage() {
               </span>
             </div>
           )}
+        </div>
+      </div>
+    )}
+
+    {/* ─── Offerte-editor modal ─── */}
+    {offerteModal.open && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800">Offerte opstellen</h3>
+              <p className="text-xs text-gray-500">{offerteModal.klant}
+                {offerteModal.status !== 'concept' && (
+                  <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{offerteModal.status}</span>
+                )}
+              </p>
+            </div>
+            <button onClick={() => setOfferteModal(legeOfferteModal)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+          </div>
+
+          <div className="p-6 overflow-y-auto flex-1 space-y-4">
+            {offerteModal.laden ? (
+              <p className="text-center text-sm text-gray-400 py-10">Regels laden…</p>
+            ) : (
+              <>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-xs text-amber-800">
+                  ℹ️ De klant ziet in de offerte <strong>alleen m²-prijzen</strong> (geen totalen).
+                  De grijze ondergrens per regel toont hoe ver u kunt zakken (−5% van de webshopcalculatie).
+                </div>
+
+                {/* Regels */}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-gray-500 px-1">
+                    <span className="col-span-6">Omschrijving</span>
+                    <span className="col-span-1 text-center">Aantal</span>
+                    <span className="col-span-2 text-center">m²</span>
+                    <span className="col-span-2 text-right">Prijs / m²</span>
+                    <span className="col-span-1" />
+                  </div>
+                  {offerteModal.regels.map((r, i) => (
+                    <div key={i} className="grid grid-cols-12 gap-2 items-start">
+                      <input className="col-span-6 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                        value={r.omschrijving}
+                        onChange={e => setOfferteModal(m => ({ ...m, regels: m.regels.map((x, j) => j === i ? { ...x, omschrijving: e.target.value } : x) }))} />
+                      <input type="number" min={1} className="col-span-1 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center"
+                        value={r.aantal}
+                        onChange={e => setOfferteModal(m => ({ ...m, regels: m.regels.map((x, j) => j === i ? { ...x, aantal: parseInt(e.target.value) || 1 } : x) }))} />
+                      <input type="number" step="0.01" className="col-span-2 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center"
+                        value={r.m2}
+                        onChange={e => setOfferteModal(m => ({ ...m, regels: m.regels.map((x, j) => j === i ? { ...x, m2: parseFloat(e.target.value) || 0 } : x) }))} />
+                      <div className="col-span-2">
+                        <input type="number" step="0.01" className={`w-full px-2 py-1.5 border rounded-lg text-sm text-right font-semibold
+                            ${r.ondergrens > 0 && r.prijs_per_m2 < r.ondergrens ? 'border-red-400 bg-red-50 text-red-700' : 'border-gray-300'}`}
+                          value={r.prijs_per_m2}
+                          onChange={e => setOfferteModal(m => ({ ...m, regels: m.regels.map((x, j) => j === i ? { ...x, prijs_per_m2: parseFloat(e.target.value) || 0 } : x) }))} />
+                        {r.ondergrens > 0 && (
+                          <p className={`text-[10px] mt-0.5 text-right ${r.prijs_per_m2 < r.ondergrens ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                            ondergrens € {r.ondergrens.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setOfferteModal(m => ({ ...m, regels: m.regels.filter((_, j) => j !== i) }))}
+                        className="col-span-1 text-red-400 hover:text-red-600 text-sm pt-1.5"
+                      >✕</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setOfferteModal(m => ({ ...m, regels: [...m.regels, { omschrijving: '', aantal: 1, m2: 0, prijs_per_m2: 0, ondergrens: 0 }] }))}
+                    className="w-full py-2 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                  >
+                    + Regel toevoegen
+                  </button>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Vervaldatum (standaard 30 dagen)</label>
+                    <input type="date" value={offerteModal.vervaldatum}
+                      onChange={e => setOfferteModal(m => ({ ...m, vervaldatum: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Totale oppervlakte</label>
+                    <p className="px-3 py-2 text-sm font-semibold text-gray-700">
+                      {offerteModal.regels.reduce((s, r) => s + (r.m2 || 0), 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Opmerking op de offerte (optioneel)</label>
+                  <textarea rows={2} value={offerteModal.opmerking}
+                    onChange={e => setOfferteModal(m => ({ ...m, opmerking: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none" />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center gap-3">
+            <button onClick={() => setOfferteModal(legeOfferteModal)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">
+              Annuleren
+            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => slaOfferteOp(false)}
+                disabled={offerteModal.bezig || offerteModal.laden}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg disabled:opacity-50"
+              >
+                💾 Opslaan als concept
+              </button>
+              <button
+                onClick={() => slaOfferteOp(true)}
+                disabled={offerteModal.bezig || offerteModal.laden}
+                className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50"
+              >
+                {offerteModal.bezig ? 'Bezig…' : '✉️ Offerte versturen'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     )}

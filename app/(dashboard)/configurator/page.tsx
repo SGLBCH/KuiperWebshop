@@ -114,7 +114,7 @@ const VOEGMETHODES = [
 
 const BASEPLAAT_GROUPS = [
   { key: 'multiplex', label: 'Multiplex', match: ['multiplex', 'berken', 'okoume', 'populier', 'garant'] },
-  { key: 'mdf', label: 'MDF en vezelplaat', match: ['mdf', 'vezel'] },
+  { key: 'mdf', label: 'MDF', match: ['mdf', 'vezel'] },
   { key: 'spaan', label: 'Spaanplaat', match: ['spaan'] },
   { key: 'overig', label: 'Overige plaatmaterialen', match: [] },
 ]
@@ -163,6 +163,29 @@ export default function ConfiguratorPage() {
   const [uitsluitingen, setUitsluitingen] = useState<UitsluitingRow[]>([])
   const [insluitingen, setInsluitingen] = useState<InsluitingRow[]>([])
   const [fotoZoom, setFotoZoom] = useState<{ url: string; naam: string } | null>(null)
+
+  // Regels die al in de gekozen projectlijst zitten (getoond op stap 7)
+  type LijstRegel = { id: string; basisplaat_id: string; categorie: string; fineer_voor: string | null; hpl_voor: string | null; aantal: number }
+  const [lijstRegels, setLijstRegels] = useState<LijstRegel[]>([])
+
+  useEffect(() => {
+    const lijstId = state.orderlijst_id
+    if (step !== 7 || !lijstId) { setLijstRegels([]); return }
+    let cancelled = false
+    async function laadLijstRegels() {
+      const supabase = await getSupabase()
+      if (!supabase) return
+      const { data } = await supabase
+        .from('orderlijst_regels')
+        .select('id, basisplaat_id, categorie, fineer_voor, hpl_voor, aantal')
+        .eq('orderlijst_id', lijstId)
+        .order('id')
+      if (!cancelled && data) setLijstRegels(data as LijstRegel[])
+    }
+    laadLijstRegels()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, state.orderlijst_id])
 
   // Prijs komt van de server (/api/prijs) — geen inkoopprijzen of marges in de browser
   const [indicatie, setIndicatie] = useState<PrijsIndicatie>(LEGE_INDICATIE)
@@ -338,6 +361,20 @@ export default function ConfiguratorPage() {
     setStep(s => s - 1)
   }
 
+  // Bewerkingen die met de huidige selectie beschikbaar/toegestaan zijn
+  function zichtbareBewerkingen(): Bewerking[] {
+    return bewerkingen.filter(b =>
+      b.beschikbaar &&
+      (!state.categorie || b.compatibiliteit.includes(state.categorie)) &&
+      (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'bewerking', b.id)) &&
+      (!state.afmeting || !isNietIngesloten(insluitingen, 'basisplaat', state.afmeting.id, 'bewerking', b.id)) &&
+      (!state.fineer_voor || !isUitgesloten(uitsluitingen, 'fineer', state.fineer_voor.id, 'bewerking', b.id)) &&
+      (!state.fineer_voor || !isNietIngesloten(insluitingen, 'fineer', state.fineer_voor.id, 'bewerking', b.id)) &&
+      (!state.hpl_voor || !isUitgesloten(uitsluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id)) &&
+      (!state.hpl_voor || !isNietIngesloten(insluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id))
+    )
+  }
+
   function canNext(): boolean {
     if (step === 0) return !!state.orderlijst_id
     if (step === 1) return !!state.basisplaat
@@ -346,15 +383,38 @@ export default function ConfiguratorPage() {
     if (step === 4) {
       if (state.categorie === 'fineer') {
         return !!state.fineer_voor && !!state.voegmethode && !!state.fineerkeuze
+          // Snijwijze is verplicht zodra het gekozen fineer opties heeft
+          && (!(state.fineer_voor.snijwijzes?.length) || !!state.snijwijze)
       }
       if (state.categorie === 'hpl') return !!state.hpl_voor
+    }
+    if (step === 5) {
+      // Elk keuzepaar (Gezaagd/Ongezaagd, Geschuurd/Ongeschuurd) vereist een keuze
+      const groepen = new Map<string, Bewerking[]>()
+      zichtbareBewerkingen().forEach(b => {
+        if (b.keuzegroep) groepen.set(b.keuzegroep, [...(groepen.get(b.keuzegroep) ?? []), b])
+      })
+      for (const opties of groepen.values()) {
+        if (opties.length >= 2 && !opties.some(o => state.bewerkingen.some(sb => sb.id === o.id))) {
+          return false
+        }
+      }
+      return true
     }
     if (step === 6) return state.aantal > 0
     return true
   }
 
+  // Na een selectie automatisch doorscrollen naar de Volgende-knop onderaan
+  function scrollNaarVolgende() {
+    setTimeout(() => {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+    }, 150)
+  }
+
   function selectAfmeting(p: Baseplaat) {
     setOpenAfmetingLengths(groups => ({ ...groups, [String(p.lengte_mm)]: true }))
+    scrollNaarVolgende()
     setState(s => {
       const newState = { ...s, afmeting: p, basisplaat: p }
       newState.bewerkingen = s.bewerkingen.filter(b =>
@@ -402,6 +462,7 @@ export default function ConfiguratorPage() {
             voegmethode: state.voegmethode ?? null,
             fineerkeuze: state.fineerkeuze ?? null,
             fineerkeuze_datum: state.fineerkeuze_datum ?? null,
+            snijwijze: state.snijwijze ?? null,
             bewerking_ids: (state.bewerkingen ?? []).map(b => b.id),
             ruimte_indeling: state.ruimte_indeling ?? 'geen',
             ruimtes: state.ruimtes ?? [],
@@ -415,7 +476,7 @@ export default function ConfiguratorPage() {
         return
       }
     }
-    toast.success(`Regel toegevoegd aan "${state.orderlijst_naam ?? 'Orderlijst'}"`)
+    toast.success(`Regel toegevoegd aan "${state.orderlijst_naam ?? 'Projectlijst'}"`)
     if (keepListForNext) {
       const keepList = { orderlijst_id: state.orderlijst_id, orderlijst_naam: state.orderlijst_naam }
       setState({ ...initialState, ...keepList })
@@ -503,8 +564,8 @@ export default function ConfiguratorPage() {
         {/* ─── STEP 0: Orderlijst kiezen ─── */}
         {step === 0 && (
           <div className="p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-1">Orderlijst kiezen</h2>
-            <p className="text-sm text-gray-500 mb-6">Selecteer een bestaande orderlijst of maak een nieuwe aan.</p>
+            <h2 className="text-xl font-bold text-gray-800 mb-1">Projectlijst kiezen</h2>
+            <p className="text-sm text-gray-500 mb-6">Selecteer een bestaand project of maak een nieuwe projectlijst aan.</p>
 
             <div className="space-y-3 mb-4">
               {orderlijsten.filter(l => l.status === 'actueel' || l.status === 'concept').map(lijst => (
@@ -532,7 +593,7 @@ export default function ConfiguratorPage() {
                 onClick={() => setCreatingList(true)}
                 className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 transition-colors"
               >
-                + Nieuwe orderlijst aanmaken
+                + Nieuwe projectlijst aanmaken
               </button>
             ) : (
               <div className="flex gap-2">
@@ -542,7 +603,7 @@ export default function ConfiguratorPage() {
                   value={newListNaam}
                   onChange={e => setNewListNaam(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') createNewOrderlijst() }}
-                  placeholder="Naam nieuwe orderlijst"
+                  placeholder="Projectnaam of referentie"
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <button
@@ -607,6 +668,7 @@ export default function ConfiguratorPage() {
                             onClick={() => {
                               setOpenAfmetingLengths({})
                               setState(s => ({ ...s, basisplaat: variants[0], afmeting: undefined }))
+                              scrollNaarVolgende()
                             }}
                             className={`relative p-3 rounded-lg border text-left transition-all hover:shadow-sm
                               ${isSelected ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]' : 'border-stone-200 hover:border-[var(--color-primary-muted)]'}`}
@@ -701,7 +763,7 @@ export default function ConfiguratorPage() {
                                     ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
                                 >
                                   <p className="text-2xl font-bold text-gray-800">{p.dikte_mm}<span className="text-base font-normal">mm</span></p>
-                                  <p className="text-xs text-gray-500 mt-0.5">{p.breedte_mm}×{p.lengte_mm}mm</p>
+                                  <p className="text-xs text-gray-500 mt-0.5">{p.lengte_mm}×{p.breedte_mm}mm</p>
                                 </button>
                               )
                             })}
@@ -761,7 +823,8 @@ export default function ConfiguratorPage() {
                       value={state.fineer_voor?.id ?? ''}
                       onChange={e => {
                         const f = fineers.find(fn => fn.id === e.target.value)
-                        setState(s => ({ ...s, fineer_voor: f }))
+                        // Snijwijze reset: opties verschillen per houtsoort
+                        setState(s => ({ ...s, fineer_voor: f, snijwijze: undefined }))
                       }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                     >
@@ -933,6 +996,39 @@ export default function ConfiguratorPage() {
                     <p>De foto op de webshop is ter indicatie. Elke boom is anders, dus het eindresultaat kan afwijken. Mocht u willen weten welke stam Kuiper gebruikt, vraag dan om een foto met de keuze hierboven.</p>
                   </div>
                 </div>
+
+                {/* Snijwijze (Quartier / Dosse) — alleen als het gekozen fineer opties heeft */}
+                {(state.fineer_voor?.snijwijzes?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className="text-sm font-semibold text-gray-700">Snijwijze *</label>
+                      <span className="text-xs text-red-500">(verplicht)</span>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      {(state.fineer_voor?.snijwijzes ?? []).map(sw => {
+                        const isAdvies = (state.fineer_voor?.snijwijze_advies ?? []).includes(sw)
+                        const label = sw === 'quartier' ? 'Quartier' : 'Dosse'
+                        const beschrijving = sw === 'quartier'
+                          ? 'Kwartiers gesneden — strak, rechtlijnig nerfbeeld'
+                          : 'Op dosse gesneden — levendige vlamtekening'
+                        return (
+                          <button
+                            key={sw}
+                            onClick={() => setState(s => ({ ...s, snijwijze: sw as 'quartier' | 'dosse' }))}
+                            className={`p-3 rounded-xl border-2 text-left relative transition-all
+                              ${state.snijwijze === sw ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+                          >
+                            {isAdvies && (
+                              <span className="absolute top-1.5 right-1.5 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-medium">Aanbevolen</span>
+                            )}
+                            <p className="font-medium text-sm text-gray-800">{label}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{beschrijving}</p>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
@@ -1026,54 +1122,98 @@ export default function ConfiguratorPage() {
               </div>
             )}
 
-            <div className="grid sm:grid-cols-2 gap-3">
-              {bewerkingen
-                .filter(b =>
-                  b.beschikbaar &&
-                  (!state.categorie || b.compatibiliteit.includes(state.categorie)) &&
-                  (!state.afmeting || !isUitgesloten(uitsluitingen, 'basisplaat', state.afmeting.id, 'bewerking', b.id)) &&
-                  (!state.afmeting || !isNietIngesloten(insluitingen, 'basisplaat', state.afmeting.id, 'bewerking', b.id)) &&
-                  (!state.fineer_voor || !isUitgesloten(uitsluitingen, 'fineer', state.fineer_voor.id, 'bewerking', b.id)) &&
-                  (!state.fineer_voor || !isNietIngesloten(insluitingen, 'fineer', state.fineer_voor.id, 'bewerking', b.id)) &&
-                  (!state.hpl_voor || !isUitgesloten(uitsluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id)) &&
-                  (!state.hpl_voor || !isNietIngesloten(insluitingen, 'hpl', state.hpl_voor.id, 'bewerking', b.id))
-                )
-                .map(b => {
-                  const isSelected = state.bewerkingen.some(sb => sb.id === b.id)
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => setState(s => ({
-                        ...s,
-                        bewerkingen: isSelected
-                          ? s.bewerkingen.filter(sb => sb.id !== b.id)
-                          : [...s.bewerkingen, b],
-                      }))}
-                      className={`p-4 rounded-xl border-2 text-left transition-all relative
-                        ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-semibold text-gray-800">{b.naam}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">{b.beschrijving}</p>
+            {(() => {
+              const zichtbaar = zichtbareBewerkingen()
+              const groepen = new Map<string, Bewerking[]>()
+              const los: Bewerking[] = []
+              zichtbaar.forEach(b => {
+                if (b.keuzegroep) groepen.set(b.keuzegroep, [...(groepen.get(b.keuzegroep) ?? []), b])
+                else los.push(b)
+              })
+
+              const bewerkingKaart = (b: Bewerking, isSelected: boolean, onClick: () => void) => (
+                <button
+                  key={b.id}
+                  onClick={onClick}
+                  className={`p-4 rounded-xl border-2 text-left transition-all relative
+                    ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-800">{b.naam}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{b.beschrijving}</p>
+                    </div>
+                    {b.prijs > 0 && (
+                      <div className="shrink-0 ml-2">
+                        <span className="text-sm font-bold text-blue-600">
+                          + € {b.prijs.toFixed(2)}{(b.prijs_type ?? 'per_m2') === 'per_order' ? '/order' : '/m²'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <div className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+              )
+
+              return (
+                <>
+                  {/* Keuzeparen: precies één optie per groep verplicht */}
+                  {[...groepen.entries()].map(([groep, opties]) => {
+                    const geenKeuze = !opties.some(o => state.bewerkingen.some(sb => sb.id === o.id))
+                    return (
+                      <div key={groep} className="mb-5">
+                        <div className="flex items-center gap-2 mb-2">
+                          <label className="text-sm font-semibold text-gray-700 capitalize">{groep}</label>
+                          <span className="text-xs text-red-500">(maak een keuze)</span>
+                          {geenKeuze && opties.length >= 2 && (
+                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">nog niet gekozen</span>
+                          )}
                         </div>
-                        <div className="shrink-0 ml-2">
-                          <span className="text-sm font-bold text-blue-600">
-                            + € {b.prijs.toFixed(2)}{(b.prijs_type ?? 'per_m2') === 'per_order' ? '/order' : '/m²'}
-                          </span>
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          {opties.map(b => {
+                            const isSelected = state.bewerkingen.some(sb => sb.id === b.id)
+                            return bewerkingKaart(b, isSelected, () => setState(s => ({
+                              ...s,
+                              // Exclusief binnen de groep: de andere optie vervalt
+                              bewerkingen: [
+                                ...s.bewerkingen.filter(sb => !opties.some(o => o.id === sb.id)),
+                                b,
+                              ],
+                            })))
+                          })}
                         </div>
                       </div>
-                      {isSelected && (
-                        <div className="absolute top-2 right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
+                    )
+                  })}
+
+                  {/* Overige (optionele) bewerkingen */}
+                  {los.length > 0 && (
+                    <>
+                      {groepen.size > 0 && (
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">Extra bewerkingen (optioneel)</label>
                       )}
-                    </button>
-                  )
-                })}
-            </div>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {los.map(b => {
+                          const isSelected = state.bewerkingen.some(sb => sb.id === b.id)
+                          return bewerkingKaart(b, isSelected, () => setState(s => ({
+                            ...s,
+                            bewerkingen: isSelected
+                              ? s.bewerkingen.filter(sb => sb.id !== b.id)
+                              : [...s.bewerkingen, b],
+                          })))
+                        })}
+                      </div>
+                    </>
+                  )}
+                </>
+              )
+            })()}
           </div>
         )}
 
@@ -1100,6 +1240,12 @@ export default function ConfiguratorPage() {
             {/* Ruimte indeling */}
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Ruimte-indeling</label>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 mb-3">
+                💡 <strong>Tip:</strong> deel uw platen in per ruimte (bijv. keuken, woonkamer,
+                slaapkamer). Wij houden het fineer dan per ruimte bij elkaar, zodat de
+                houttekening en kleur binnen één ruimte altijd mooi op elkaar aansluiten
+                en u geen kleurverschil krijgt.
+              </div>
               <div className="flex gap-2">
                 {(['geen', 'per_ruimte'] as const).map(ind => (
                   <button
@@ -1237,8 +1383,8 @@ export default function ConfiguratorPage() {
               <div className="text-right">
                 <span className="text-xs text-green-700">Indicatieve richtprijs</span>
                 <p className="text-lg font-bold text-green-800">
-                  {indicatie.range_hoog > 0
-                    ? `€ ${euro(indicatie.range_laag)} – € ${euro(indicatie.range_hoog)}`
+                  {indicatie.per_m2_hoog > 0
+                    ? `€ ${euroM2(indicatie.per_m2_hoog)} / m²`
                     : '—'}
                 </p>
               </div>
@@ -1255,9 +1401,9 @@ export default function ConfiguratorPage() {
             <div className="grid sm:grid-cols-2 gap-4 mb-6">
               <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                 <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">Configuratie</h3>
-                <SummaryRow label="Orderlijst" value={state.orderlijst_naam ?? '-'} />
+                <SummaryRow label="Projectlijst" value={state.orderlijst_naam ?? '-'} />
                 <SummaryRow label="Basisplaat" value={state.afmeting ? `${state.afmeting.naam} ${state.afmeting.dikte_mm}mm` : '-'} />
-                <SummaryRow label="Afmeting" value={state.afmeting ? `${state.afmeting.breedte_mm}×${state.afmeting.lengte_mm}mm` : '-'} />
+                <SummaryRow label="Afmeting" value={state.afmeting ? `${state.afmeting.lengte_mm}×${state.afmeting.breedte_mm}mm` : '-'} />
                 <SummaryRow label="Categorie" value={state.categorie ?? '-'} />
                 {state.categorie === 'fineer' && (
                   <>
@@ -1265,6 +1411,7 @@ export default function ConfiguratorPage() {
                     <SummaryRow label="Fineer tegen" value={state.fineer_tegen?.naam ?? 'Geen'} />
                     <SummaryRow label="Voegmethode" value={state.voegmethode ?? '-'} />
                     <SummaryRow label="Fineerkeuze" value={state.fineerkeuze ?? '-'} />
+                    {state.snijwijze && <SummaryRow label="Snijwijze" value={state.snijwijze} />}
                   </>
                 )}
                 {state.categorie === 'hpl' && (
@@ -1299,18 +1446,13 @@ export default function ConfiguratorPage() {
                 <div className="bg-white rounded-xl border border-blue-100 p-5 text-center mb-4">
                   <p className="text-xs text-gray-500 mb-1">Indicatieve richtprijs excl. BTW</p>
                   <p className={`text-2xl font-bold text-blue-700 ${priceLoading ? 'opacity-40' : ''}`}>
-                    {indicatie.range_hoog > 0
-                      ? `€ ${euro(indicatie.range_laag)} – € ${euro(indicatie.range_hoog)}`
+                    {indicatie.per_m2_hoog > 0
+                      ? `€ ${euroM2(indicatie.per_m2_hoog)} / m²`
                       : priceError ? '—' : 'Wordt berekend…'}
                   </p>
-                  {indicatie.per_stuk_vanaf > 0 && (
+                  {indicatie.totaal_m2 > 0 && (
                     <p className="text-sm text-gray-500 mt-1.5">
-                      vanaf € {euro(indicatie.per_stuk_vanaf)} per stuk
-                    </p>
-                  )}
-                  {indicatie.per_m2_hoog > 0 && (
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      € {euroM2(indicatie.per_m2_laag)} – € {euroM2(indicatie.per_m2_hoog)} per m²
+                      Totale oppervlakte: <strong>{indicatie.totaal_m2.toFixed(2)} m²</strong> ({state.aantal} platen)
                     </p>
                   )}
                   {priceError && !priceLoading && (
@@ -1349,8 +1491,8 @@ export default function ConfiguratorPage() {
                 </div>
 
                 <p className="text-xs text-gray-400 mt-auto pt-4">
-                  Dit is een indicatieve richtprijs. De definitieve prijs ontvangt u
-                  na bevestiging van uw offerteaanvraag door Kuiper Holland.
+                  Dit is een indicatieve richtprijs per m² excl. BTW. De definitieve
+                  prijs ontvangt u in de offerte van Kuiper Holland.
                 </p>
               </div>
             </div>
@@ -1361,7 +1503,7 @@ export default function ConfiguratorPage() {
                 onClick={handleAddToList}
                 className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors"
               >
-                ✓ Toevoegen aan orderlijst
+                ✓ Toevoegen aan projectlijst en bekijk totale lijst
               </button>
               <button
                 onClick={handleAddAndNew}
@@ -1376,6 +1518,34 @@ export default function ConfiguratorPage() {
                 🗑️ Verwijder en begin opnieuw
               </button>
             </div>
+
+            {/* Reeds toegevoegde regels in deze projectlijst */}
+            {lijstRegels.length > 0 && (
+              <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 p-4">
+                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-3">
+                  Al in &quot;{state.orderlijst_naam ?? 'deze projectlijst'}&quot; ({lijstRegels.length})
+                </h3>
+                <div className="space-y-2">
+                  {lijstRegels.map((r, i) => {
+                    const plaat = baseplaten.find(b => b.id === r.basisplaat_id)
+                    const afwerking = r.categorie === 'fineer'
+                      ? fineers.find(f => f.id === r.fineer_voor)?.naam ?? 'fineer'
+                      : r.categorie === 'hpl'
+                        ? hplList.find(h => h.id === r.hpl_voor)?.kleur ?? 'HPL'
+                        : 'kaal'
+                    return (
+                      <div key={r.id} className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                        <span className="text-gray-700 truncate">
+                          <span className="text-gray-400 mr-1.5">#{i + 1}</span>
+                          {plaat ? `${plaat.naam} ${plaat.dikte_mm}mm` : 'Plaat'} — {afwerking}
+                        </span>
+                        <span className="text-gray-500 shrink-0 ml-3">{r.aantal}×</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

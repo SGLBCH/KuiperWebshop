@@ -99,11 +99,12 @@ export async function POST(request: Request) {
     totaal,
     bericht,
   })
+  // Klantmail bevat bewust geen bedragen — klanten zien alleen m²-richtprijzen
   const klantMail = aanvraagKlantTemplate({
     klantNaam,
     lijstNaam: lijst.naam,
     aantalRegels: regels.length,
-    totaal,
+    totaal: 0,
   })
 
   const [adminRes, klantRes] = await Promise.all([

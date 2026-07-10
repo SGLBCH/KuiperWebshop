@@ -165,6 +165,9 @@ export default function SignupPage() {
         return
       }
 
+      // Bevestigingsmail naar klant + notificatie naar admin (best effort)
+      fetch('/api/notify/aanmelding', { method: 'POST' }).catch(() => {})
+
       setStep(4)
     } catch {
       toast.error('Er is een fout opgetreden. Probeer het later opnieuw.')

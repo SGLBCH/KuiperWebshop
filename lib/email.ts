@@ -7,6 +7,7 @@ type MailInput = {
   cc?: string[]
   subject: string
   html: string
+  attachments?: { filename: string; content: string }[]  // content = base64
 }
 
 export function emailIsGeconfigureerd(): boolean {
@@ -40,6 +41,7 @@ export async function sendMail(input: MailInput): Promise<{ ok: boolean; error?:
         cc: input.cc && input.cc.length > 0 ? input.cc : undefined,
         subject: input.subject,
         html: input.html,
+        attachments: input.attachments,
       }),
     })
     if (!res.ok) {
@@ -109,8 +111,112 @@ export function aanvraagKlantTemplate(p: {
         (${p.aantalRegels} regel${p.aantalRegels === 1 ? '' : 's'}) in goede orde ontvangen.
       </p>
       <p style="font-size: 14px;">
-        De indicatieve waarde van uw aanvraag is <strong>&euro; ${p.totaal.toFixed(2)} excl. BTW</strong>.
-        Dit is een richtbedrag — u ontvangt van ons zo snel mogelijk een definitieve offerte.
+        U ontvangt van ons zo snel mogelijk een offerte met de definitieve prijzen.
+      </p>
+      <p style="font-size: 14px;">Met vriendelijke groet,<br/>Kuiper Holland B.V.</p>
+    `),
+  }
+}
+
+// ─── Account-aanmelding ──────────────────────────────────────────────────────
+
+export function aanmeldingKlantTemplate(p: { naam: string }): { subject: string; html: string } {
+  return {
+    subject: 'Uw accountaanvraag bij Kuiper Holland is in behandeling',
+    html: wrap(`
+      <h2 style="margin-top: 0;">Uw aanvraag is in review</h2>
+      <p style="font-size: 14px;">Beste ${p.naam},</p>
+      <p style="font-size: 14px;">
+        Bedankt voor uw accountaanvraag bij de Kuiper Holland B2B webshop.
+        Uw aanvraag wordt op dit moment beoordeeld door onze beheerder.
+      </p>
+      <p style="font-size: 14px;">
+        Zodra uw account is goedgekeurd ontvangt u een e-mail en kunt u direct inloggen.
+        Dit duurt doorgaans maximaal 2 werkdagen.
+      </p>
+      <p style="font-size: 14px;">Met vriendelijke groet,<br/>Kuiper Holland B.V.</p>
+    `),
+  }
+}
+
+export function aanmeldingAdminTemplate(p: {
+  naam: string
+  bedrijf: string
+  email: string
+  kvk?: string | null
+  branche?: string | null
+}): { subject: string; html: string } {
+  return {
+    subject: `Nieuwe accountaanvraag: ${p.bedrijf || p.naam}`,
+    html: wrap(`
+      <h2 style="margin-top: 0;">Nieuwe accountaanvraag</h2>
+      <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+        <tr><td style="padding: 4px 0; color: #78716c;">Naam</td><td style="padding: 4px 0;"><strong>${p.naam}</strong></td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">Bedrijf</td><td style="padding: 4px 0;">${p.bedrijf || '—'}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">E-mail</td><td style="padding: 4px 0;">${p.email}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">KvK</td><td style="padding: 4px 0;">${p.kvk ?? '—'}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">Branche</td><td style="padding: 4px 0;">${p.branche ?? '—'}</td></tr>
+      </table>
+      <p style="font-size: 14px;">Beoordeel de aanvraag in het admin-panel onder <strong>Aanmeldingen</strong>.</p>
+    `),
+  }
+}
+
+export function goedkeuringKlantTemplate(p: { naam: string; loginUrl: string }): { subject: string; html: string } {
+  return {
+    subject: 'Uw account bij Kuiper Holland is goedgekeurd',
+    html: wrap(`
+      <h2 style="margin-top: 0;">Uw account is goedgekeurd 🎉</h2>
+      <p style="font-size: 14px;">Beste ${p.naam},</p>
+      <p style="font-size: 14px;">
+        Goed nieuws: uw account voor de Kuiper Holland B2B webshop is goedgekeurd.
+        U kunt nu inloggen en direct aan de slag met de configurator.
+      </p>
+      <p style="font-size: 14px; text-align: center; margin: 24px 0;">
+        <a href="${p.loginUrl}" style="background: #1d4ed8; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+          Inloggen
+        </a>
+      </p>
+      <p style="font-size: 14px;">Met vriendelijke groet,<br/>Kuiper Holland B.V.</p>
+    `),
+  }
+}
+
+// ─── Offerte ─────────────────────────────────────────────────────────────────
+
+export function offerteKlantTemplate(p: {
+  naam: string
+  offertenummer: string
+  vervaldatum: string
+  offerteUrl: string
+  accepteerUrl: string
+  afwachtUrl: string
+}): { subject: string; html: string } {
+  return {
+    subject: `Uw offerte ${p.offertenummer} van Kuiper Holland`,
+    html: wrap(`
+      <h2 style="margin-top: 0;">Uw offerte staat klaar</h2>
+      <p style="font-size: 14px;">Beste ${p.naam},</p>
+      <p style="font-size: 14px;">
+        In de bijlage vindt u offerte <strong>${p.offertenummer}</strong>.
+        Deze offerte is geldig tot <strong>${p.vervaldatum}</strong>.
+      </p>
+      <p style="font-size: 14px;">Laat ons direct weten wat u wilt doen:</p>
+      <table style="width: 100%; margin: 20px 0;"><tr>
+        <td style="text-align: center; padding: 0 6px;">
+          <a href="${p.accepteerUrl}" style="display: inline-block; background: #16a34a; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+            ✓ Accepteren
+          </a>
+        </td>
+        <td style="text-align: center; padding: 0 6px;">
+          <a href="${p.afwachtUrl}" style="display: inline-block; background: #f5f5f4; color: #44403c; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; border: 1px solid #d6d3d1;">
+            Afwachten
+          </a>
+        </td>
+      </tr></table>
+      <p style="font-size: 14px;">
+        U kunt de offerte ook online bekijken en daar reageren:<br/>
+        <a href="${p.offerteUrl}" style="color: #1d4ed8;">${p.offerteUrl}</a>
       </p>
       <p style="font-size: 14px;">Met vriendelijke groet,<br/>Kuiper Holland B.V.</p>
     `),

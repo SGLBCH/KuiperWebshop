@@ -37,6 +37,8 @@ export interface Fineer {
   plak_overhead_per_m2?: number    // fineer-specifieke plakkosten/complexiteit
   voegmethodes: string[]          // ['gestolpt','geschoven','mixmatch','gedraaid_geschoven']
   voeg_standaard: string          // one of the above
+  snijwijzes?: string[]           // beschikbare snijwijzes: ['quartier','dosse']
+  snijwijze_advies?: string[]     // door admin geadviseerde snijwijze(s)
   fk_advies: 'fabriek' | 'foto_kuiper' | 'foto_klant' | 'persoonlijk'
   info?: string
   status_lang: 'beschikbaar' | 'tijdelijk_niet' | 'niet_beschikbaar'
@@ -73,6 +75,9 @@ export interface Bewerking {
   beschikbaar: boolean
   standaard_geselecteerd: boolean
   volgorde: number
+  // Keuzepaar: bewerkingen met dezelfde keuzegroep sluiten elkaar uit en
+  // precies één ervan moet gekozen worden (bijv. 'zagen': Zaagwerk/Ongezaagd)
+  keuzegroep?: string | null
 }
 
 // ─── Staffel ───────────────────────────────────────────────────────────────────
@@ -182,6 +187,7 @@ export interface ConfiguratorState {
   voegmethode?: string
   fineerkeuze?: 'fabriek' | 'foto_kuiper' | 'foto_klant' | 'persoonlijk'
   fineerkeuze_datum?: string
+  snijwijze?: 'quartier' | 'dosse'
 
   // Step 4 - HPL
   hpl_voor?: HPL

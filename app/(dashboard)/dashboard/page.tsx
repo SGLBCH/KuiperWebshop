@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Badge } from '@/components/ui/Badge'
 import { Modal } from '@/components/ui/Modal'
 import { seedOrderlijsten } from '@/lib/seed-data'
@@ -68,14 +68,12 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
 }) {
   const [modalStep, setModalStep] = useState(0)
   const [bericht, setBericht] = useState('')
-  const [checks, setChecks] = useState([false, false, false, false])
+  const [checks, setChecks] = useState([false, false])
   const [sending, setSending] = useState(false)
 
   const checkLabels = [
     'Ik heb alle offerte regels gecontroleerd op juistheid',
     'Ik begrijp dat wijzigingen tijdens het productieproces niet meer mogelijk zijn',
-                'Ik ga akkoord met de leverings- en betalingsvoorwaarden van Kuiper Holland',
-    'Ik bevestig dat deze offerte en mogelijke bestelling namens mijn bedrijf wordt geplaatst',
   ]
 
   function toggleCheck(i: number) {
@@ -90,7 +88,7 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL
       if (url && url !== 'https://your-project.supabase.co') {
         if (!orderlijstId) {
-          toast.error('Orderlijst niet gevonden — probeer het opnieuw')
+          toast.error('Projectlijst niet gevonden — probeer het opnieuw')
           return
         }
         // Server-side: berekent het totaal (incl. verzending), slaat de
@@ -116,7 +114,7 @@ function SendOrderlijstModal({ open, onClose, naam, orderlijstId, onSent }: {
   function handleClose() {
     setModalStep(0)
     setBericht('')
-    setChecks([false, false, false, false])
+    setChecks([false, false])
     onClose()
   }
 
@@ -219,7 +217,7 @@ function NewOrderlijstModal({ open, onClose, onCreate }: { open: boolean; onClos
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Nieuwe orderlijst" maxWidth="sm">
+    <Modal open={open} onClose={onClose} title="Nieuwe projectlijst" maxWidth="sm">
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Projectnaam *</label>
@@ -250,7 +248,16 @@ function NewOrderlijstModal({ open, onClose, onCreate }: { open: boolean; onClos
   )
 }
 
+// useSearchParams vereist een Suspense-boundary bij prerendering
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="text-center py-20 text-gray-400 text-sm">Laden…</div>}>
+      <DashboardInner />
+    </Suspense>
+  )
+}
+
+function DashboardInner() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('shop')
   const [orderlijsten, setOrderlijsten] = useState<Orderlijst[]>([])
@@ -281,12 +288,19 @@ export default function DashboardPage() {
     return createClient()
   }, [])
 
+  // Reactief op de tab-parameter: klik op "Dashboard" in het topmenu
+  // (zonder ?tab=) brengt je altijd terug naar de Shop-weergave
+  const searchParams = useSearchParams()
   useEffect(() => {
-    const requestedTab = new URLSearchParams(window.location.search).get('tab')
+    const requestedTab = searchParams.get('tab')
     if (requestedTab === 'orders' || requestedTab === 'orderlijst') {
       setActiveTab(requestedTab)
+    } else {
+      setActiveTab('shop')
     }
+  }, [searchParams])
 
+  useEffect(() => {
     async function load() {
       const supabase = await getSupabase()
       if (!supabase) {
@@ -322,7 +336,7 @@ export default function DashboardPage() {
     if (supabase) {
       const { error } = await supabase.from('orderlijsten').delete().eq('id', id)
       if (error) toast.error('Verwijderen mislukt: ' + error.message)
-      else toast.success('Orderlijst verwijderd')
+      else toast.success('Projectlijst verwijderd')
     }
   }
 
@@ -347,7 +361,7 @@ export default function DashboardPage() {
 
     if (error) { toast.error('Aanmaken mislukt: ' + error.message); return }
     if (data) setOrderlijsten(lists => [data, ...lists])
-    toast.success(`Orderlijst "${naam}" aangemaakt`)
+    toast.success(`Projectlijst "${naam}" aangemaakt`)
   }
 
   // Herberekent regelprijzen server-side (gecombineerde staffel incl.
@@ -494,10 +508,114 @@ export default function DashboardPage() {
     setViewModal(v => ({ ...v, regels: displayRegels, siblingRegels, catalog, loading: false }))
   }
 
+  // Klantversie-PDF van een verstuurde projectlijst: alleen m²-richtprijzen
+  // (+15%-bovenkant), totale m² en specificaties — geen totaalbedragen.
+  async function printKlantPdf(lijst: Orderlijst) {
+    const toastId = toast.loading('Overzicht opbouwen…')
+    try {
+      const supabase = await getSupabase()
+      if (!supabase) { toast.error('Niet beschikbaar in demo-modus', { id: toastId }); return }
+
+      const [regelRes, catalog] = await Promise.all([
+        supabase.from('orderlijst_regels')
+          .select('id, basisplaat_id, categorie, fineer_voor, fineer_tegen, hpl_voor, hpl_tegen, voegmethode, fineerkeuze, snijwijze, bewerkingen, aantal, totaal_prijs')
+          .eq('orderlijst_id', lijst.id)
+          .order('id'),
+        loadCatalog(supabase),
+      ])
+      const regels = (regelRes.data ?? []) as (OrderlijstRegel & { snijwijze?: string | null })[]
+      if (regels.length === 0) { toast.error('Deze lijst bevat geen regels', { id: toastId }); return }
+
+      let somM2 = 0
+      const rows = regels.map((r, i) => {
+        const plaat = catalog.baseplaten.find(b => b.id === r.basisplaat_id)
+        const m2 = plaat ? (plaat.breedte_mm / 1000) * (plaat.lengte_mm / 1000) * r.aantal : 0
+        somM2 += m2
+        // Zelfde m²-richtprijs als in de webshop: bovenkant van de band (+15%)
+        const perM2 = m2 > 0 ? Math.ceil(((r.totaal_prijs ?? 0) * 1.15 / m2) * 2) / 2 : 0
+        const afwerking = r.categorie === 'fineer'
+          ? [catalog.fineers.find(f => f.id === r.fineer_voor)?.naam, catalog.fineers.find(f => f.id === r.fineer_tegen)?.naam].filter(Boolean).join(' / ') || 'Fineer'
+          : r.categorie === 'hpl'
+            ? [catalog.hplList.find(h => h.id === r.hpl_voor)?.kleur, catalog.hplList.find(h => h.id === r.hpl_tegen)?.kleur].filter(Boolean).join(' / ') || 'HPL'
+            : 'Kaal'
+        const bewNamen = (r.bewerkingen ?? []).map(id => catalog.bewerkingen.find(b => b.id === id)?.naam ?? '').filter(Boolean).join(', ')
+        return `
+          <tr class="${i % 2 === 0 ? 'even' : 'odd'}">
+            <td class="num">${i + 1}</td>
+            <td><strong>${plaat ? `${plaat.naam} ${plaat.dikte_mm}mm` : '—'}</strong><br>
+              <span class="sub">${plaat ? `${plaat.lengte_mm}×${plaat.breedte_mm}mm` : ''}${r.voegmethode ? ` · voeg: ${r.voegmethode}` : ''}${r.snijwijze ? ` · ${r.snijwijze}` : ''}</span></td>
+            <td>${afwerking}</td>
+            <td>${bewNamen || '—'}</td>
+            <td class="num">${r.aantal}×</td>
+            <td class="num">${m2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</td>
+            <td class="num money">€ ${perM2.toLocaleString('nl-NL', { minimumFractionDigits: 2 })} /m²</td>
+          </tr>`
+      }).join('')
+
+      const datum = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
+      const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">
+<title>Overzicht — ${lijst.naam}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; padding: 24px 32px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; border-bottom: 2px solid #8B6F47; padding-bottom: 16px; }
+  .logo { font-size: 20px; font-weight: 700; color: #8B6F47; display: flex; align-items: center; gap: 8px; }
+  .logo img { height: 30px; width: auto; }
+  .meta { text-align: right; font-size: 10px; color: #666; }
+  .meta strong { display: block; font-size: 14px; color: #1a1a1a; margin-bottom: 2px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10.5px; }
+  thead tr { background: #8B6F47; color: white; }
+  thead th { padding: 7px 8px; text-align: left; font-weight: 600; font-size: 10px; }
+  tbody tr.even { background: #fafafa; }
+  td { padding: 6px 8px; vertical-align: top; border-bottom: 1px solid #eee; }
+  td.num { text-align: center; white-space: nowrap; }
+  td.money { text-align: right; }
+  .sub { color: #888; font-size: 9.5px; }
+  .totaal { display: flex; justify-content: flex-end; gap: 24px; font-size: 12px; font-weight: bold; padding: 8px; border-top: 2px solid #8B6F47; }
+  .disclaimer { background: #fffbf0; border: 1px solid #f0e8c8; border-radius: 6px; padding: 10px 14px; font-size: 9.5px; color: #7a5200; line-height: 1.6; margin-top: 12px; }
+  @media print { body { padding: 0; } @page { margin: 15mm 12mm; size: A4; } }
+</style></head><body>
+  <div class="header">
+    <div>
+      <div class="logo"><img src="${window.location.origin}/icon.png" alt="">Kuiper Holland</div>
+      <div style="font-size:10px;color:#666;margin-top:4px;">Veneer &amp; HPL — Interieurbouw B2B</div>
+    </div>
+    <div class="meta">
+      <strong>PROJECTOVERZICHT</strong>
+      Project: ${lijst.naam}<br>
+      Afgedrukt: ${datum}
+    </div>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="width:24px">#</th><th style="width:24%">Basisplaat</th><th style="width:20%">Afwerking</th>
+      <th style="width:18%">Bewerkingen</th><th style="width:9%">Aantal</th><th style="width:11%">m²</th>
+      <th style="width:14%; text-align:right">Richtprijs /m²</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="totaal"><span>Totale oppervlakte</span><span>${somM2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</span></div>
+  <div class="disclaimer">
+    <strong>Indicatieve richtprijzen per m², excl. BTW en verzendkosten.</strong>
+    De definitieve prijzen ontvangt u in de offerte van Kuiper Holland B.V.
+  </div>
+  <script>window.onload = function() { window.print(); }<\/script>
+</body></html>`
+
+      toast.dismiss(toastId)
+      const win = window.open('', '_blank', 'width=900,height=700')
+      if (win) { win.document.write(html); win.document.close() }
+      else toast.error('Pop-up geblokkeerd. Sta pop-ups toe voor deze site.')
+    } catch (e) {
+      console.error(e)
+      toast.error('Overzicht genereren mislukt', { id: toastId })
+    }
+  }
+
   async function combineer() {
     if (selectedLists.length < 2 || combining) return
     setCombining(true)
-    const toastId = toast.loading('Orderlijsten koppelen…')
+    const toastId = toast.loading('Projectlijsten koppelen…')
     try {
       const supabase = await getSupabase()
       if (!supabase) { toast.error('Geen verbinding', { id: toastId }); return }
@@ -623,7 +741,7 @@ export default function DashboardPage() {
         <aside className="hidden md:flex flex-col gap-1 w-48 shrink-0">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 mb-1">Menu</p>
           {(['shop', 'orders', 'orderlijst'] as Tab[]).map(tab => {
-            const labels: Record<Tab, string> = { shop: 'Shop', orders: 'Orders', orderlijst: 'Orderlijsten' }
+            const labels: Record<Tab, string> = { shop: 'Shop', orders: 'Orders', orderlijst: 'Projectlijsten' }
             const icons: Record<Tab, string> = { shop: '🛒', orders: '📦', orderlijst: '📋' }
             return (
               <button
@@ -653,7 +771,7 @@ export default function DashboardPage() {
           {/* Tab bar (mobile) */}
           <div className="flex gap-1 md:hidden mb-4 bg-white rounded-xl p-1 border border-gray-200">
             {(['shop', 'orders', 'orderlijst'] as Tab[]).map(tab => {
-              const labels: Record<Tab, string> = { shop: 'Shop', orders: 'Orders', orderlijst: 'Lijsten' }
+              const labels: Record<Tab, string> = { shop: 'Shop', orders: 'Orders', orderlijst: 'Projecten' }
               return (
                 <button
                   key={tab}
@@ -706,18 +824,18 @@ export default function DashboardPage() {
 
                 {/* Actieve orderlijsten */}
                 <div className="bg-white rounded-lg border border-stone-200 p-5 shadow-sm">
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Mijn orderlijsten</h2>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Mijn projectlijsten</h2>
                   {(() => {
                     const actief = orderlijsten.filter(l => l.status === 'actueel' || l.status === 'concept')
                     if (actief.length === 0) {
                       return (
                         <div className="text-center py-6">
-                          <p className="text-gray-400 text-sm mb-3">Geen actieve orderlijsten.</p>
+                          <p className="text-gray-400 text-sm mb-3">Geen actieve projectlijsten.</p>
                           <button
                             onClick={() => setActiveTab('orderlijst')}
                             className="text-sm text-blue-600 font-semibold hover:underline"
                           >
-                            Ga naar orderlijsten →
+                            Ga naar projectlijsten →
                           </button>
                         </div>
                       )
@@ -816,7 +934,7 @@ export default function DashboardPage() {
               {verstuurdListjes.length === 0 && actueleListjes.length === 0 && (
                 <div className="text-center py-12 text-gray-400 bg-white rounded-xl border border-gray-200">
                   <p className="text-3xl mb-2">📦</p>
-                  <p className="text-sm">Nog geen orderlijsten aangemaakt.</p>
+                  <p className="text-sm">Nog geen projectlijsten aangemaakt.</p>
                 </div>
               )}
 
@@ -825,12 +943,23 @@ export default function DashboardPage() {
                   <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Verstuurd</p>
                   <div className="space-y-2">
                     {verstuurdListjes.map(lijst => (
-                      <div key={lijst.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200">
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{lijst.naam}</p>
+                      <div key={lijst.id} className="flex items-center justify-between p-3 bg-white rounded-xl border border-gray-200 gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800 truncate">{lijst.naam}</p>
                           <p className="text-xs text-gray-400">{new Date(lijst.bijgewerkt_op).toLocaleDateString('nl-NL')}</p>
                         </div>
-                        <Badge variant="verstuurd">Verstuurd</Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => printKlantPdf(lijst)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            PDF
+                          </button>
+                          <Badge variant="verstuurd">Verstuurd</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -862,7 +991,7 @@ export default function DashboardPage() {
           {activeTab === 'orderlijst' && (
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h1 className="text-lg font-bold text-gray-800">Orderlijsten</h1>
+                <h1 className="text-lg font-bold text-gray-800">Projectlijsten</h1>
                 <button
                   onClick={() => setNewListModal(true)}
                   className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
@@ -985,7 +1114,7 @@ export default function DashboardPage() {
                   {actueleListjes.length === 0 && (
                     <div className="text-center py-8 text-gray-400 bg-white rounded-xl border border-gray-200">
                       <p className="text-3xl mb-2">📋</p>
-                      <p className="text-sm">Geen actieve orderlijsten. Maak een nieuwe aan!</p>
+                      <p className="text-sm">Geen actieve projectlijsten. Maak een nieuwe aan!</p>
                     </div>
                   )}
                 </div>
@@ -994,7 +1123,7 @@ export default function DashboardPage() {
               {/* Verstuurd */}
               {verstuurdListjes.length > 0 && (
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Orderlijst Historie</h2>
+                  <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Projectlijst historie</h2>
                   <div className="space-y-2">
                     {verstuurdListjes.map(lijst => (
                       <div key={lijst.id} className="bg-white rounded-xl border border-gray-200 p-3">
@@ -1043,7 +1172,7 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </div>
-            <h3 className="text-base font-bold text-gray-800 mb-1">Orderlijst verwijderen?</h3>
+            <h3 className="text-base font-bold text-gray-800 mb-1">Projectlijst verwijderen?</h3>
             <p className="text-sm text-gray-500 mb-5">
               <span className="font-medium text-gray-700">{deleteListConfirm.naam}</span> en alle
               bijbehorende regels worden permanent verwijderd.
@@ -1074,7 +1203,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
               <div>
                 <h2 className="text-lg font-bold text-gray-800">{viewModal.lijst.naam}</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Orderlijst overzicht</p>
+                <p className="text-xs text-gray-400 mt-0.5">Projectoverzicht</p>
               </div>
               <button
                 onClick={() => setViewModal(v => ({ ...v, open: false, lijst: null, regels: [], siblingRegels: [], catalog: null, hasChanges: false }))}
@@ -1213,23 +1342,10 @@ export default function DashboardPage() {
                                 {regel.m2_totaal.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²
                               </p>
                             )}
+                            {/* Klant ziet uitsluitend de indicatieve m²-richtprijs */}
                             {regel.per_m2_hoog != null && regel.per_m2_hoog > 0 && (
-                              <p className="text-xs text-gray-400 whitespace-nowrap">
-                                € {(regel.per_m2_laag ?? 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} – € {regel.per_m2_hoog.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} /m²
-                              </p>
-                            )}
-                            {regel.range_hoog != null && regel.range_hoog > 0 ? (
-                              <>
-                                <p className="text-xs text-gray-500 whitespace-nowrap">
-                                  € {Math.floor((regel.range_laag ?? 0) / regel.aantal).toLocaleString('nl-NL')} – € {Math.ceil(regel.range_hoog / regel.aantal).toLocaleString('nl-NL')} / stuk
-                                </p>
-                                <p className="text-xs font-semibold text-gray-700 whitespace-nowrap">
-                                  € {(regel.range_laag ?? 0).toLocaleString('nl-NL')} – € {regel.range_hoog.toLocaleString('nl-NL')}
-                                </p>
-                              </>
-                            ) : (
-                              <p className="text-xs font-semibold text-gray-700">
-                                € {regel.totaal_prijs?.toFixed(2) ?? '—'}
+                              <p className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                                € {regel.per_m2_hoog.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} /m²
                               </p>
                             )}
                           </div>
@@ -1244,48 +1360,26 @@ export default function DashboardPage() {
             {/* Footer */}
             {viewModal.regels.length > 0 && (() => {
               const materiaalkosten = viewModal.regels.reduce((s, r) => s + (r.totaal_prijs ?? 0), 0)
-              const heeftRanges = viewModal.regels.every(r => (r.range_hoog ?? 0) > 0)
-              const rangeLaag = viewModal.regels.reduce((s, r) => s + (r.range_laag ?? 0), 0)
-              const rangeHoog = viewModal.regels.reduce((s, r) => s + (r.range_hoog ?? 0), 0)
               const totaalM2 = viewModal.regels.reduce((s, r) => s + (r.m2_totaal ?? 0), 0)
               const drempel = viewModal.catalog?.verzendDrempel ?? 1750
               const verzendKosten = viewModal.catalog?.verzendKosten ?? 25
               const verzending = materiaalkosten >= drempel ? 0 : verzendKosten
-              const totaal = materiaalkosten + verzending
               return (
                 <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl space-y-3">
-                  {/* Prijsoverzicht */}
+                  {/* Overzicht — klant ziet m² en verzending, geen totaalbedragen */}
                   <div className="space-y-1 text-sm">
-                    {totaalM2 > 0 && (
-                      <div className="flex justify-between text-gray-600">
-                        <span>Totaal m²</span>
-                        <span>{totaalM2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between text-gray-600">
-                      <span>Materiaalkosten (indicatief)</span>
-                      <span>
-                        {heeftRanges
-                          ? `€ ${rangeLaag.toLocaleString('nl-NL')} – € ${rangeHoog.toLocaleString('nl-NL')}`
-                          : `€ ${materiaalkosten.toFixed(2)}`}
-                      </span>
+                    <div className="flex justify-between font-bold text-gray-800">
+                      <span>Totale oppervlakte</span>
+                      <span>{totaalM2 > 0 ? `${totaalM2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²` : '—'}</span>
                     </div>
                     <div className="flex justify-between text-gray-600">
-                      <span>Verzendkosten {materiaalkosten >= drempel && <span className="text-green-600 text-xs">(gratis boven € {drempel})</span>}</span>
+                      <span>Verzendkosten</span>
                       <span className={verzending === 0 ? 'text-green-600' : ''}>
                         {verzending === 0 ? 'Gratis' : `€ ${verzending.toFixed(2)}`}
                       </span>
                     </div>
-                    <div className="flex justify-between font-bold text-gray-800 pt-1 border-t border-gray-200">
-                      <span>Totaal (indicatief)</span>
-                      <span>
-                        {heeftRanges
-                          ? `€ ${(rangeLaag + verzending).toLocaleString('nl-NL')} – € ${(rangeHoog + verzending).toLocaleString('nl-NL')}`
-                          : `€ ${totaal.toFixed(2)}`}
-                      </span>
-                    </div>
                     <p className="text-xs text-gray-400 pt-1">
-                      Indicatieve richtprijzen — de definitieve prijs ontvangt u na bevestiging van uw offerteaanvraag.
+                      Indicatieve richtprijzen per m² excl. BTW — de definitieve prijs ontvangt u in de offerte van Kuiper Holland.
                     </p>
                   </div>
 

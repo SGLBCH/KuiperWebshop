@@ -26,6 +26,7 @@ type ConfigInput = {
   voegmethode?: string | null
   fineerkeuze?: 'fabriek' | 'foto_kuiper' | 'foto_klant' | 'persoonlijk' | null
   fineerkeuze_datum?: string | null
+  snijwijze?: 'quartier' | 'dosse' | null
   bewerking_ids?: string[]
   ruimte_indeling?: string | null
   ruimtes?: unknown[]
@@ -293,6 +294,7 @@ export async function POST(request: Request) {
       voegmethode: cfg.voegmethode ?? null,
       fineerkeuze: cfg.fineerkeuze ?? null,
       fineerkeuze_datum: cfg.fineerkeuze_datum ?? null,
+      snijwijze: cfg.snijwijze ?? null,
       bewerkingen: cfg.bewerking_ids ?? [],
       ruimte_indeling: cfg.ruimte_indeling ?? 'geen',
       ruimtes: cfg.ruimtes ?? [],
