@@ -31,11 +31,18 @@ ALTER TABLE public.fineers
   ADD COLUMN IF NOT EXISTS snijwijze_advies TEXT[] NOT NULL DEFAULT '{}';
 
 -- Catalogus-view bijwerken zodat klanten de snijwijze-opties zien
--- (view bevat nog steeds géén prijzen of calculatiefactoren)
-CREATE OR REPLACE VIEW public.catalogus_fineers AS
+-- (view bevat nog steeds géén prijzen of calculatiefactoren).
+-- DROP + CREATE omdat Postgres geen kolommen mag tussenvoegen via
+-- CREATE OR REPLACE VIEW.
+DROP VIEW IF EXISTS public.catalogus_fineers;
+CREATE VIEW public.catalogus_fineers AS
   SELECT id, naam, voegmethodes, voeg_standaard, snijwijzes, snijwijze_advies,
          fk_advies, info, status_lang, status_kort, gallery_foto_url, volgorde
   FROM public.fineers;
+
+-- Rechten opnieuw zetten (gaan verloren bij DROP)
+REVOKE ALL ON public.catalogus_fineers FROM PUBLIC, anon;
+GRANT SELECT ON public.catalogus_fineers TO authenticated;
 
 -- ─── 3. Orderlijst-regels: gekozen snijwijze ─────────────────────────────────
 ALTER TABLE public.orderlijst_regels
