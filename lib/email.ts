@@ -10,6 +10,17 @@ type MailInput = {
   attachments?: { filename: string; content: string }[]  // content = base64
 }
 
+// Escape gebruikersinvoer voordat die in HTML-mails wordt geplakt —
+// klantnamen, bedrijfsnamen en berichten zijn attacker-controlled.
+export function escapeHtml(s: string | null | undefined): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export function emailIsGeconfigureerd(): boolean {
   return !!process.env.RESEND_API_KEY
 }
@@ -83,13 +94,13 @@ export function aanvraagAdminTemplate(p: {
     html: wrap(`
       <h2 style="margin-top: 0;">Nieuwe offerteaanvraag</h2>
       <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-        <tr><td style="padding: 4px 0; color: #78716c;">Klant</td><td style="padding: 4px 0;"><strong>${p.klantNaam}</strong> (${p.klantBedrijf || '—'})</td></tr>
-        <tr><td style="padding: 4px 0; color: #78716c;">E-mail</td><td style="padding: 4px 0;">${p.klantEmail}</td></tr>
-        <tr><td style="padding: 4px 0; color: #78716c;">Orderlijst</td><td style="padding: 4px 0;">${p.lijstNaam}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">Klant</td><td style="padding: 4px 0;"><strong>${escapeHtml(p.klantNaam)}</strong> (${escapeHtml(p.klantBedrijf) || '—'})</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">E-mail</td><td style="padding: 4px 0;">${escapeHtml(p.klantEmail)}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">Orderlijst</td><td style="padding: 4px 0;">${escapeHtml(p.lijstNaam)}</td></tr>
         <tr><td style="padding: 4px 0; color: #78716c;">Regels</td><td style="padding: 4px 0;">${p.aantalRegels}</td></tr>
         <tr><td style="padding: 4px 0; color: #78716c;">Indicatieve waarde</td><td style="padding: 4px 0;"><strong>&euro; ${p.totaal.toFixed(2)}</strong> excl. BTW</td></tr>
       </table>
-      ${p.bericht ? `<p style="font-size: 14px; background: #f5f5f4; padding: 12px; border-radius: 6px;"><strong>Bericht van de klant:</strong><br/>${p.bericht}</p>` : ''}
+      ${p.bericht ? `<p style="font-size: 14px; background: #f5f5f4; padding: 12px; border-radius: 6px;"><strong>Bericht van de klant:</strong><br/>${escapeHtml(p.bericht)}</p>` : ''}
       <p style="font-size: 14px;">Bekijk en behandel de aanvraag in het admin-panel van de webshop.</p>
     `),
   }
@@ -105,9 +116,9 @@ export function aanvraagKlantTemplate(p: {
     subject: `Uw offerteaanvraag "${p.lijstNaam}" is ontvangen`,
     html: wrap(`
       <h2 style="margin-top: 0;">Bedankt voor uw aanvraag</h2>
-      <p style="font-size: 14px;">Beste ${p.klantNaam},</p>
+      <p style="font-size: 14px;">Beste ${escapeHtml(p.klantNaam)},</p>
       <p style="font-size: 14px;">
-        Wij hebben uw offerteaanvraag voor <strong>${p.lijstNaam}</strong>
+        Wij hebben uw offerteaanvraag voor <strong>${escapeHtml(p.lijstNaam)}</strong>
         (${p.aantalRegels} regel${p.aantalRegels === 1 ? '' : 's'}) in goede orde ontvangen.
       </p>
       <p style="font-size: 14px;">
@@ -125,7 +136,7 @@ export function aanmeldingKlantTemplate(p: { naam: string }): { subject: string;
     subject: 'Uw accountaanvraag bij Kuiper Holland is in behandeling',
     html: wrap(`
       <h2 style="margin-top: 0;">Uw aanvraag is in review</h2>
-      <p style="font-size: 14px;">Beste ${p.naam},</p>
+      <p style="font-size: 14px;">Beste ${escapeHtml(p.naam)},</p>
       <p style="font-size: 14px;">
         Bedankt voor uw accountaanvraag bij de Kuiper Holland B2B webshop.
         Uw aanvraag wordt op dit moment beoordeeld door onze beheerder.
@@ -151,11 +162,11 @@ export function aanmeldingAdminTemplate(p: {
     html: wrap(`
       <h2 style="margin-top: 0;">Nieuwe accountaanvraag</h2>
       <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-        <tr><td style="padding: 4px 0; color: #78716c;">Naam</td><td style="padding: 4px 0;"><strong>${p.naam}</strong></td></tr>
-        <tr><td style="padding: 4px 0; color: #78716c;">Bedrijf</td><td style="padding: 4px 0;">${p.bedrijf || '—'}</td></tr>
-        <tr><td style="padding: 4px 0; color: #78716c;">E-mail</td><td style="padding: 4px 0;">${p.email}</td></tr>
-        <tr><td style="padding: 4px 0; color: #78716c;">KvK</td><td style="padding: 4px 0;">${p.kvk ?? '—'}</td></tr>
-        <tr><td style="padding: 4px 0; color: #78716c;">Branche</td><td style="padding: 4px 0;">${p.branche ?? '—'}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">Naam</td><td style="padding: 4px 0;"><strong>${escapeHtml(p.naam)}</strong></td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">Bedrijf</td><td style="padding: 4px 0;">${escapeHtml(p.bedrijf) || '—'}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">E-mail</td><td style="padding: 4px 0;">${escapeHtml(p.email)}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">KvK</td><td style="padding: 4px 0;">${escapeHtml(p.kvk) || '—'}</td></tr>
+        <tr><td style="padding: 4px 0; color: #78716c;">Branche</td><td style="padding: 4px 0;">${escapeHtml(p.branche) || '—'}</td></tr>
       </table>
       <p style="font-size: 14px;">Beoordeel de aanvraag in het admin-panel onder <strong>Aanmeldingen</strong>.</p>
     `),
@@ -167,7 +178,7 @@ export function goedkeuringKlantTemplate(p: { naam: string; loginUrl: string }):
     subject: 'Uw account bij Kuiper Holland is goedgekeurd',
     html: wrap(`
       <h2 style="margin-top: 0;">Uw account is goedgekeurd 🎉</h2>
-      <p style="font-size: 14px;">Beste ${p.naam},</p>
+      <p style="font-size: 14px;">Beste ${escapeHtml(p.naam)},</p>
       <p style="font-size: 14px;">
         Goed nieuws: uw account voor de Kuiper Holland B2B webshop is goedgekeurd.
         U kunt nu inloggen en direct aan de slag met de configurator.
@@ -196,7 +207,7 @@ export function offerteKlantTemplate(p: {
     subject: `Uw offerte ${p.offertenummer} van Kuiper Holland`,
     html: wrap(`
       <h2 style="margin-top: 0;">Uw offerte staat klaar</h2>
-      <p style="font-size: 14px;">Beste ${p.naam},</p>
+      <p style="font-size: 14px;">Beste ${escapeHtml(p.naam)},</p>
       <p style="font-size: 14px;">
         In de bijlage vindt u offerte <strong>${p.offertenummer}</strong>.
         Deze offerte is geldig tot <strong>${p.vervaldatum}</strong>.

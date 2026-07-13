@@ -26,6 +26,12 @@ const DONKER = rgb(0.1, 0.1, 0.1)
 const GRIJS = rgb(0.45, 0.45, 0.45)
 const LICHT = rgb(0.96, 0.95, 0.93)
 
+// Standaard PDF-fonts kennen alleen WinAnsi-tekens; alles daarbuiten
+// (emoji, exotische tekens in klantnamen) zou de generatie laten crashen.
+function veilig(t: string): string {
+  return t.replace(/[^\u0020-\u007E\u00A0-\u00FF\u20AC\u2013\u2014\u2018\u2019\u201C\u201D\u2026]/g, '?')
+}
+
 const eur = (n: number) =>
   '€ ' + n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const m2fmt = (n: number) =>
@@ -42,7 +48,7 @@ export async function genereerOffertePdf(data: OfferteData): Promise<Uint8Array>
   let y = height - marge
 
   const tekst = (t: string, x: number, size = 9, f = font, kleur = DONKER) =>
-    page.drawText(t, { x, y, size, font: f, color: kleur })
+    page.drawText(veilig(t), { x, y, size, font: f, color: kleur })
 
   // ── Header ──
   tekst('Kuiper Holland', marge, 20, bold, BRUIN)

@@ -37,6 +37,15 @@ function isForeignKeyReferenceError(error: SupabaseErrorLike) {
   return error?.code === '23503' || /violates foreign key constraint/i.test(error?.message ?? '')
 }
 
+function escapeHtml(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function withoutFineerCalculationColumns(payload: Record<string, unknown>) {
   const { calculatie_factor, plak_overhead_per_m2, snijwijzes, snijwijze_advies, ...legacyPayload } = payload
   return legacyPayload
@@ -252,7 +261,7 @@ export default function AdminPage() {
       // Group headers per orderlijst
       const sections = orderlijsten.map(ol => `
         <tr class="ol-header">
-          <td colspan="7"><strong>📋 ${ol.naam}</strong> <span class="sub">(${ol.regels.length} regel${ol.regels.length !== 1 ? 's' : ''})</span></td>
+          <td colspan="7"><strong>📋 ${escapeHtml(ol.naam)}</strong> <span class="sub">(${ol.regels.length} regel${ol.regels.length !== 1 ? 's' : ''})</span></td>
         </tr>
         ${ol.regels.map((r, idx) => {
           const bp = r.basisplaat
@@ -265,7 +274,7 @@ export default function AdminPage() {
           const bewString = r.bewerkingen.length ? r.bewerkingen.map(bewNaam).join(', ') : '—'
           const fotoUrl = r.fineer_voor?.gallery_foto_url ?? r.hpl_voor?.gallery_foto_url ?? null
           const aantalStr = r.ruimte_indeling === 'per_ruimte' && r.ruimtes?.length
-            ? r.ruimtes.map((ru: { naam: string; aantal: number }) => `${ru.naam}: ${ru.aantal}×`).join('<br>')
+            ? r.ruimtes.map((ru: { naam: string; aantal: number }) => `${escapeHtml(ru.naam)}: ${ru.aantal}×`).join('<br>')
             : `${r.aantal}×`
           const fkVoor = fkAdviesLabel(r.fineer_voor?.fk_advies)
           const fkTegen = r.fineer_tegen?.fk_advies && r.fineer_tegen.fk_advies !== r.fineer_voor?.fk_advies
@@ -305,7 +314,7 @@ export default function AdminPage() {
 <html lang="nl">
 <head>
 <meta charset="utf-8">
-<title>Aanvraag — ${orderlijsten.map(o => o.naam).join(', ')}</title>
+<title>Aanvraag — ${escapeHtml(orderlijsten.map(o => o.naam).join(', '))}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; padding: 24px 32px; }
@@ -361,26 +370,26 @@ export default function AdminPage() {
   <div class="klant-grid">
     <div class="card">
       <h3>Klantgegevens</h3>
-      <p><strong>${profiel?.naam ?? '—'}</strong></p>
-      <p>${profiel?.bedrijf ?? '—'}</p>
-      ${profiel?.adres ? `<p>${profiel.adres}</p>` : ''}
-      ${profiel?.kvk ? `<p>KvK: ${profiel.kvk}</p>` : ''}
-      ${profiel?.email ? `<p>${profiel.email}</p>` : ''}
+      <p><strong>${escapeHtml(profiel?.naam) || '—'}</strong></p>
+      <p>${escapeHtml(profiel?.bedrijf) || '—'}</p>
+      ${profiel?.adres ? `<p>${escapeHtml(profiel.adres)}</p>` : ''}
+      ${profiel?.kvk ? `<p>KvK: ${escapeHtml(profiel.kvk)}</p>` : ''}
+      ${profiel?.email ? `<p>${escapeHtml(profiel.email)}</p>` : ''}
     </div>
     <div class="card">
       <h3>Aanvraaginfo</h3>
-      <p><strong>Project${orderlijsten.length > 1 ? 'en' : ''}:</strong> ${orderlijsten.map(o => o.naam).join(', ')}</p>
+      <p><strong>Project${orderlijsten.length > 1 ? 'en' : ''}:</strong> ${escapeHtml(orderlijsten.map(o => o.naam).join(', '))}</p>
       <p><strong>Type:</strong> Offerte aanvraag</p>
       <p><strong>Richtprijs (indicatief):</strong> ${rangeFmt(sumLaag, sumHoog)}</p>
       ${sumM2 > 0 ? `<p><strong>Totaal m²:</strong> ${sumM2.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m²</p>` : ''}
-      ${aanvraag.fineerkeuze_tekst ? `<p><strong>Fineerkeuze:</strong> ${aanvraag.fineerkeuze_tekst}</p>` : ''}
+      ${aanvraag.fineerkeuze_tekst ? `<p><strong>Fineerkeuze:</strong> ${escapeHtml(aanvraag.fineerkeuze_tekst)}</p>` : ''}
     </div>
   </div>
 
   ${aanvraag.bericht ? `
   <div class="bericht">
     <h3>Bericht van klant</h3>
-    <p>${aanvraag.bericht}</p>
+    <p>${escapeHtml(aanvraag.bericht)}</p>
   </div>` : ''}
 
   <table>

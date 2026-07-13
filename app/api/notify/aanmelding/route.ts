@@ -13,12 +13,16 @@ export async function POST() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('naam, bedrijf, email, kvk, branche, status')
+    .select('naam, bedrijf, email, kvk, branche, status, aangemaakt_op')
     .eq('id', user.id)
     .single()
 
-  // Alleen voor verse aanmeldingen die nog op review wachten
-  if (!profile || profile.status !== 'pending') {
+  // Alleen voor verse aanmeldingen die nog op review wachten.
+  // De leeftijdscheck voorkomt dat een pending gebruiker dit endpoint
+  // herhaaldelijk misbruikt om de admin-mailbox te spammen.
+  const uurGeleden = Date.now() - 60 * 60 * 1000
+  if (!profile || profile.status !== 'pending'
+    || (profile.aangemaakt_op && new Date(profile.aangemaakt_op).getTime() < uurGeleden)) {
     return NextResponse.json({ ok: false })
   }
 

@@ -20,8 +20,10 @@ export async function GET(request: Request) {
   const terug = NextResponse.redirect(new URL(`/offerte/${token}`, url.origin))
 
   // Alleen reageren op verstuurde (of eerder afgewachte) offertes die niet
-  // verlopen of al geaccepteerd zijn
-  if (offerte.status === 'geaccepteerd' || offerte.status === 'concept' || isVerlopen(offerte)) {
+  // verlopen of al geaccepteerd zijn. Zelfde keuze nogmaals = no-op, zodat
+  // herhaald klikken op de mailknop geen dubbele admin-mails veroorzaakt.
+  if (offerte.status === 'geaccepteerd' || offerte.status === 'concept'
+    || offerte.status === keuze || isVerlopen(offerte)) {
     return terug
   }
 

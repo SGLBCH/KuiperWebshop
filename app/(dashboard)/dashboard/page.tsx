@@ -50,6 +50,15 @@ const BP_SAFE_COLS = 'id, naam, dikte_mm, breedte_mm, lengte_mm, beschikbaar, ga
 const FN_SAFE_COLS = 'id, naam, voegmethodes, voeg_standaard, fk_advies, info, status_lang, status_kort, gallery_foto_url, volgorde'
 const HPL_SAFE_COLS = 'id, kleur, hpl_afm_lang_b, hpl_afm_lang_l, hpl_afm_kort_b, hpl_afm_kort_l, info, status_lang, status_kort, gallery_foto_url'
 
+function escapeHtml(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 const FINEERKEUZE_LABELS: Record<string, string> = {
   fabriek: 'Fabriek kiest',
   foto_kuiper: 'Foto van Kuiper',
@@ -554,7 +563,7 @@ function DashboardInner() {
 
       const datum = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
       const html = `<!DOCTYPE html><html lang="nl"><head><meta charset="utf-8">
-<title>Overzicht — ${lijst.naam}</title>
+<title>Overzicht — ${escapeHtml(lijst.naam)}</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, sans-serif; font-size: 11px; color: #1a1a1a; padding: 24px 32px; }
@@ -582,7 +591,7 @@ function DashboardInner() {
     </div>
     <div class="meta">
       <strong>PROJECTOVERZICHT</strong>
-      Project: ${lijst.naam}<br>
+      Project: ${escapeHtml(lijst.naam)}<br>
       Afgedrukt: ${datum}
     </div>
   </div>
