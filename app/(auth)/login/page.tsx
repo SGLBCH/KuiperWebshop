@@ -1,39 +1,23 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-
-function generateCaptcha() {
-  const a = Math.floor(Math.random() * 10) + 1
-  const b = Math.floor(Math.random() * 10) + 1
-  return { a, b, answer: a + b }
-}
+import { Turnstile, turnstileActief } from '@/components/ui/Turnstile'
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [captchaAnswer, setCaptchaAnswer] = useState('')
-  const [captcha, setCaptcha] = useState({ a: 7, b: 5, answer: 12 })
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    setCaptcha(generateCaptcha())
-  }, [])
-
-  const refreshCaptcha = useCallback(() => {
-    setCaptcha(generateCaptcha())
-    setCaptchaAnswer('')
-  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
-    if (parseInt(captchaAnswer) !== captcha.answer) {
-      toast.error('Verificatiecode is onjuist. Probeer opnieuw.')
-      refreshCaptcha()
+    if (turnstileActief() && !captchaToken) {
+      toast.error('Bevestig eerst de veiligheidscontrole.')
       return
     }
 
@@ -51,7 +35,11 @@ export default function LoginPage() {
 
       const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+        options: captchaToken ? { captchaToken } : undefined,
+      })
 
       if (error) {
         toast.error(error.message === 'Invalid login credentials'
@@ -213,34 +201,14 @@ export default function LoginPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">
-                    Verificatie
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 select-none rounded-lg border border-stone-200 bg-stone-50 px-4 py-2.5 text-center font-mono font-semibold text-stone-700">
-                      {captcha.a} + {captcha.b} = ?
-                    </div>
-                    <input
-                      type="number"
-                      value={captchaAnswer}
-                      onChange={e => setCaptchaAnswer(e.target.value)}
-                      required
-                      placeholder="?"
-                      className="w-20 rounded-lg border border-stone-300 px-3 py-2.5 text-center text-sm kuiper-focus"
-                    />
-                    <button
-                      type="button"
-                      onClick={refreshCaptcha}
-                      title="Nieuwe berekening"
-                      className="rounded-lg p-2.5 text-stone-500 hover:bg-stone-100 hover:text-stone-700"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    </button>
+                {turnstileActief() && (
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-1">
+                      Veiligheidscontrole
+                    </label>
+                    <Turnstile onToken={setCaptchaToken} />
                   </div>
-                </div>
+                )}
 
                 <button
                   type="submit"

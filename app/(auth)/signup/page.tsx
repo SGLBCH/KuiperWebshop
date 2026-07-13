@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
+import { Turnstile, turnstileActief } from '@/components/ui/Turnstile'
 
 const BRANCHES = [
   'Interieurbouw',
@@ -24,12 +25,6 @@ const STEPS = [
   'Klaar',
 ]
 
-function generateCaptcha() {
-  const a = Math.floor(Math.random() * 12) + 1
-  const b = Math.floor(Math.random() * 12) + 1
-  return { a, b, answer: a + b }
-}
-
 export default function SignupPage() {
   const router = useRouter()
   const [step, setStep] = useState(0)
@@ -37,8 +32,7 @@ export default function SignupPage() {
   // Step 1
   const [voornaam, setVoornaam] = useState('')
   const [achternaam, setAchternaam] = useState('')
-  const [captcha, setCaptcha] = useState({ a: 4, b: 8, answer: 12 })
-  const [captchaAnswer, setCaptchaAnswer] = useState('')
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
 
   // Step 2
   const [bedrijfsnaam, setBedrijfsnaam] = useState('')
@@ -59,24 +53,10 @@ export default function SignupPage() {
 
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => {
-    setCaptcha(generateCaptcha())
-  }, [])
-
-  const refreshCaptcha = useCallback(() => {
-    setCaptcha(generateCaptcha())
-    setCaptchaAnswer('')
-  }, [])
-
   function validateStep(): boolean {
     if (step === 0) {
       if (!voornaam.trim() || !achternaam.trim()) {
         toast.error('Vul uw voor- en achternaam in.')
-        return false
-      }
-      if (parseInt(captchaAnswer) !== captcha.answer) {
-        toast.error('Verificatiecode is onjuist.')
-        refreshCaptcha()
         return false
       }
     }
@@ -107,6 +87,10 @@ export default function SignupPage() {
       }
       if (wachtwoord !== wachtwoordBevestigen) {
         toast.error('Wachtwoorden komen niet overeen.')
+        return false
+      }
+      if (turnstileActief() && !captchaToken) {
+        toast.error('Bevestig eerst de veiligheidscontrole.')
         return false
       }
     }
@@ -144,6 +128,7 @@ export default function SignupPage() {
         email: persoonlijkEmail,
         password: wachtwoord,
         options: {
+          captchaToken: captchaToken ?? undefined,
           data: {
             naam: `${voornaam} ${achternaam}`,
             bedrijf: bedrijfsnaam,
@@ -246,31 +231,6 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* CAPTCHA */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Verificatie *</label>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-center font-mono font-semibold text-gray-700 select-none">
-                  {captcha.a} + {captcha.b} = ?
-                </div>
-                <input
-                  type="number"
-                  value={captchaAnswer}
-                  onChange={e => setCaptchaAnswer(e.target.value)}
-                  placeholder="?"
-                  className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  type="button"
-                  onClick={refreshCaptcha}
-                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-              </div>
-            </div>
           </div>
         )}
 
@@ -407,6 +367,15 @@ export default function SignupPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
+            {/* Veiligheidscontrole (Cloudflare Turnstile) — op de laatste stap,
+                omdat het token maar kort geldig is */}
+            {turnstileActief() && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Veiligheidscontrole *</label>
+                <Turnstile onToken={setCaptchaToken} />
+              </div>
+            )}
           </div>
         )}
 

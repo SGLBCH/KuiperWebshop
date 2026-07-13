@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
+import { Turnstile, turnstileActief } from '@/components/ui/Turnstile'
 type ProfileTab = 'persoonlijk' | 'bedrijf' | 'email' | 'beveiliging'
 
 type Profile = {
@@ -65,6 +66,7 @@ export default function ProfilePage() {
   const [nieuwWachtwoord, setNieuwWachtwoord] = useState('')
   const [bevestigWachtwoord, setBevestigWachtwoord] = useState('')
   const [savingPassword, setSavingPassword] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
 
   const getSupabase = useCallback(async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -191,6 +193,10 @@ export default function ProfilePage() {
       toast.error('Wachtwoord moet minimaal 8 tekens bevatten')
       return
     }
+    if (turnstileActief() && !captchaToken) {
+      toast.error('Bevestig eerst de veiligheidscontrole')
+      return
+    }
 
     setSavingPassword(true)
     try {
@@ -201,6 +207,7 @@ export default function ProfilePage() {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: profile.email,
         password: huidigWachtwoord,
+        options: captchaToken ? { captchaToken } : undefined,
       })
       if (signInError) { toast.error('Huidig wachtwoord is onjuist'); return }
 
@@ -431,6 +438,12 @@ export default function ProfilePage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" />
               </div>
             </div>
+            {turnstileActief() && !demoMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Veiligheidscontrole</label>
+                <Turnstile onToken={setCaptchaToken} />
+              </div>
+            )}
             <button
               onClick={changePassword}
               disabled={demoMode || savingPassword}

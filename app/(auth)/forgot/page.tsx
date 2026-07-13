@@ -3,15 +3,21 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
+import { Turnstile, turnstileActief } from '@/components/ui/Turnstile'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [verzonden, setVerzonden] = useState(false)
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!email.trim()) return
+    if (turnstileActief() && !captchaToken) {
+      toast.error('Bevestig eerst de veiligheidscontrole.')
+      return
+    }
     setLoading(true)
     try {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -23,6 +29,7 @@ export default function ForgotPasswordPage() {
       const supabase = createClient()
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/reset`,
+        captchaToken: captchaToken ?? undefined,
       })
       if (error) {
         toast.error('Versturen mislukt: ' + error.message)
@@ -69,6 +76,7 @@ export default function ForgotPasswordPage() {
                 className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            {turnstileActief() && <Turnstile onToken={setCaptchaToken} />}
             <button
               type="submit"
               disabled={loading || !email.trim()}
